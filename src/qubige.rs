@@ -1,22 +1,21 @@
+use scraper::Html;
 use anyhow::Result;
-use scraper::{Html, Selector};
 
-const LINK_SORT: &str = "https://www.qubige.com/sort/";
-const SELECT_SORT: &str = "div.cmd-bd > a";
+pub mod sort;
+pub mod novel;
 
-pub struct Sort {
-    pub name: String,
-    pub link: String,
+const LINK_BASE: &str = "https://www.qubige.com/";
+
+pub(crate) fn link(path: &str) -> String {
+    let mut link = String::from(LINK_BASE);
+    link.push_str(path);
+
+    link
 }
 
-async fn get_sort() -> Result<Sort> {
-    let sorts = Vec::new();
-
-    let resp = reqwest::get(LINK_SORT).await?;
+pub(crate) async fn document(url: &str) -> Result<Html> {
+    let resp = reqwest::get(url).await?;
     let text = resp.text().await?;
 
-    let doc = Html::parse_document(&text);
-    let select_sort = Selector::parse(&SELECT_SORT).unwrap();
-
-    Ok(sorts)
+    Ok(Html::parse_document(&text))
 }

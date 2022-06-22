@@ -1,1 +1,1 @@
-mod qubige;
+pub mod qubige;
