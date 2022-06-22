@@ -1,13 +1,14 @@
 use std::fmt::format;
 use std::io::Write;
 use std::ops::Range;
-use chrono::prelude::*;
+
 use anyhow::Result;
+use chrono::prelude::*;
 use scraper::Selector;
 use static_init::dynamic;
 
-const SELECT_NOVEL: &str = "div.layout > ul > li";
-const SELECT_LIST: &str = "div.listpage > span.middle > select";
+const SELECT_NOVEL: &str = "div.layout.layout2.layout-col2 > ul > li";
+const SELECT_LIST: &str = "div.listpage > span.middle > select > option";
 const SELECT_NAME: &str = "span.s2 > a";
 const SELECT_AUTHOR: &str = "span.s4";
 const SELECT_UPDATE_AT: &str = "span.s5";

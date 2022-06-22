@@ -14,7 +14,7 @@ fn get_intro_novel() {
     use spider_novel::qubige::novel;
     let novels = tokio_test::block_on(novel::from_sort(
         "https://www.qubige.com/sort/xiandaixiaoshuo/",
-        novel::GetOpt::First,
+        novel::GetOpt::Full,
     )).unwrap();
 
     for x in &novels {
