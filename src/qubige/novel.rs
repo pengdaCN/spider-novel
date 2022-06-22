@@ -7,11 +7,17 @@ use chrono::prelude::*;
 use scraper::Selector;
 use static_init::dynamic;
 
+use crate::qubige::novel::section::Section;
+
+pub mod section;
+
 const SELECT_NOVEL: &str = "div.layout.layout2.layout-col2 > ul > li";
 const SELECT_LIST: &str = "div.listpage > span.middle > select > option";
 const SELECT_NAME: &str = "span.s2 > a";
 const SELECT_AUTHOR: &str = "span.s4";
 const SELECT_UPDATE_AT: &str = "span.s5";
+const SELECT_INTRO: &str = "div.desc.xs-hidden";
+const SELECT_SECTION: &str = "div.section-box > ul > li > a";
 
 #[dynamic]
 static SELECTOR_NOVEL: Selector = {
@@ -33,6 +39,14 @@ static SELECTOR_AUTHOR: Selector = {
 static SELECTOR_UPDATE_AT: Selector = {
     Selector::parse(SELECT_UPDATE_AT).unwrap()
 };
+#[dynamic]
+static SELECTOR_INTRO: Selector = {
+    Selector::parse(SELECT_INTRO).unwrap()
+};
+#[dynamic]
+static SELECTOR_SECTION: Selector = {
+    Selector::parse(SELECT_SECTION).unwrap()
+};
 
 #[derive(Debug)]
 pub struct Novel {
@@ -47,6 +61,58 @@ pub enum GetOpt {
     Full,
     Specify(i32),
     Range(Range<i32>),
+}
+
+impl Novel {
+    pub fn link(&self) -> String {
+        super::link(&self.short_link)
+    }
+
+    pub async fn intro(&self) -> Result<Option<String>> {
+        // TODO 可以使用缓存，将doc储存一段时间
+        let doc = super::document(&self.link()).await?;
+
+        if let Some(elem_intro) = doc.select(&SELECTOR_INTRO).next() {
+            if let Some(v) = elem_intro.text().next() {
+                Ok(Some(String::from(v)))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn sections(&self) -> Result<Option<Vec<Section>>> {
+        let doc = super::document(&self.link()).await?;
+        let mut sections = Vec::new();
+        for elem in doc.select(&SELECTOR_SECTION) {
+            let mut name = String::new();
+            let mut link = String::new();
+
+            vec![
+                || {
+                    if let Some(v) = elem.text().next() {
+                        name = String::from(v);
+                    }
+                },
+                || {
+                    if let Some(v) = elem.value().attr("href") {
+                        link = String::from(v);
+                    }
+                },
+            ].into_iter().for_each(|f| {
+                f()
+            });
+
+            if name.is_empty() || link.is_empty() {
+                continue;
+            }
+
+            sections.push(section::Section::new(name, link));
+        }
+        Ok(Some(sections))
+    }
 }
 
 fn links(sort: &str, opt: GetOpt) -> Option<Vec<String>> {
