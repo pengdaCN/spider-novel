@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log::info;
 use scraper::Selector;
 use static_init::dynamic;
 

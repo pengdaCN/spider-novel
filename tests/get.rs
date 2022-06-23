@@ -62,7 +62,7 @@ fn get_section_contents() {
     use spider_novel::qubige::novel::section;
     fast_log::init(Config::new().console()).unwrap();
 
-    let section = section::Section::new( "第一章".to_string(),  "/booke/e29045b2/abaf68ae.html".to_string());
+    let section = section::Section::new( "第一章".to_string(),  "/bookb/b626dbef/894c54902066.html".to_string());
 
     let contents = tokio_test::block_on(section.contents()).unwrap();
     if let Some(v) = contents {
