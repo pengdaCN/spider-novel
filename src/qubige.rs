@@ -7,6 +7,7 @@ use static_init::dynamic;
 
 pub mod sort;
 pub mod novel;
+pub mod data;
 
 const LINK_BASE: &str = "https://www.qubige.com/";
 
