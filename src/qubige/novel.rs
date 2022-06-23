@@ -64,12 +64,20 @@ pub enum GetOpt {
 }
 
 impl Novel {
+    pub fn new(name: String, author: String, update_at: Option<DateTime<Utc>>, short_link: String) -> Self {
+        Self {
+            name,
+            author,
+            update_at,
+            short_link,
+        }
+    }
+
     pub fn link(&self) -> String {
         super::link(&self.short_link)
     }
 
     pub async fn intro(&self) -> Result<Option<String>> {
-        // TODO 可以使用缓存，将doc储存一段时间
         let doc = super::document(&self.link()).await?;
 
         if let Some(elem_intro) = doc.select(&SELECTOR_INTRO).next() {
@@ -87,29 +95,23 @@ impl Novel {
         let doc = super::document(&self.link()).await?;
         let mut sections = Vec::new();
         for elem in doc.select(&SELECTOR_SECTION) {
-            let mut name = String::new();
-            let mut link = String::new();
+            let name = {
+                if let Some(name) = elem.text().next() {
+                    String::from(name)
+                } else {
+                    continue;
+                }
+            };
 
-            vec![
-                || {
-                    if let Some(v) = elem.text().next() {
-                        name = String::from(v);
-                    }
-                },
-                || {
-                    if let Some(v) = elem.value().attr("href") {
-                        link = String::from(v);
-                    }
-                },
-            ].into_iter().for_each(|f| {
-                f()
-            });
+            let link = {
+                if let Some(link) = elem.value().attr("href") {
+                    String::from(link)
+                } else {
+                    continue;
+                }
+            };
 
-            if name.is_empty() || link.is_empty() {
-                continue;
-            }
-
-            sections.push(section::Section::new(name, link));
+            sections.push(Section::new(name, link));
         }
         Ok(Some(sections))
     }
@@ -119,7 +121,7 @@ fn links(sort: &str, opt: GetOpt) -> Option<Vec<String>> {
     match opt {
         GetOpt::First => {
             let links = vec![String::from(sort)];
-            Some(links)
+            Some(vec![String::new()])
         }
         GetOpt::Full => {
             None
