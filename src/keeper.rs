@@ -35,4 +35,10 @@ impl Keeper {
     {
         self.spiders.push(PropertySpider::new(T::id(), &T::SUPPORTED, Box::new(spider)))
     }
+
+    pub fn run(&mut self) {
+        loop {
+
+        }
+    }
 }
