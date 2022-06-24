@@ -33,9 +33,10 @@ pub struct Sort {
     pub name: String,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Ord, Eq)]
 pub struct NovelID(i64);
 
+type N1 = NovelID;
 
 impl Into<i64> for NovelID {
     fn into(self) -> i64 {
@@ -133,17 +134,13 @@ pub enum Position {
 }
 
 pub trait SpiderMetadata {
-    const SUPPORT: Support;
+    const SUPPORTED: Support;
     // 获取一个网站爬虫的id
     fn id() -> &'static str;
 }
 
-
 #[async_trait]
 pub trait Spider {
-    fn id(&self) -> &'static str;
-    fn support(&self) -> &'static Support;
-
     // 获取分类
     async fn sorts(&self) -> Result<Vec<Sort>> {
         unimplemented!()

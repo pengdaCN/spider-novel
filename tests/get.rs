@@ -3,6 +3,7 @@ use log::info;
 
 use spider_novel::qubige::novel;
 use spider_novel::qubige::novel::section;
+use spider_novel::spider::{Novel, NovelID};
 
 #[test]
 fn get_sort() {
@@ -62,7 +63,7 @@ fn get_section_contents() {
     use spider_novel::qubige::novel::section;
     fast_log::init(Config::new().console()).unwrap();
 
-    let section = section::Section::new( "第一章".to_string(),  "/bookb/b626dbef/894c54902066.html".to_string());
+    let section = section::Section::new("第一章".to_string(), "/bookb/b626dbef/894c54902066.html".to_string());
 
     let contents = tokio_test::block_on(section.contents()).unwrap();
     if let Some(v) = contents {
@@ -70,4 +71,26 @@ fn get_section_contents() {
             info!("{}", x);
         }
     }
+}
+
+#[test]
+fn into() {
+    let n: NovelID = (10 as i64).into();
+
+    NovelID::from(10 as i64);
+
+    let n2: i64 = n.into();
+
+    println!("{} {}", n, n2);
+
+    let x = Novel{
+        id: 1.into(),
+        name: "".to_string(),
+        cover: None,
+        author: "".to_string(),
+        last_updated_at: None,
+        last_updated_section_name: None
+    };
+
+
 }
