@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 #[derive(Debug, Deserialize, Serialize, FromRow)]
-struct Novel {
+pub struct Novel {
     pub id: i64,
     pub name: String,
     pub cover: String,
