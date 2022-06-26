@@ -14,8 +14,16 @@ chrono = "0.4.19"
 static_init = "1.0.2"
 log = "0.4"
 fast_log = "1.5.17"
-sqlx = { version = "0.5", features = ["runtime-tokio-native-tls", "sqlite"] }
 serde = "1.0.137"
 async-trait = "0.1.56"
+rs-snowflake = "0.6.0"
+[dependencies.sea-orm]
+version = "0.8.0"
+features = [
+    "macros",
+    "with-chrono",
+    "sqlx-sqlite",
+    "runtime-tokio-native-tls"
+]
 [dev-dependencies]
 tokio-test = "0.4.2"

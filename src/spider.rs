@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter, write};
+use std::fmt::{Display, Formatter};
 use std::ops::Range;
 
 use anyhow::Result;
@@ -140,7 +140,7 @@ pub trait SpiderMetadata {
 }
 
 #[async_trait]
-pub trait Spider {
+pub trait Spider: Sync {
     // 获取分类
     async fn sorts(&self) -> Result<Vec<Sort>> {
         unimplemented!()

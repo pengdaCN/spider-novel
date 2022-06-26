@@ -1,7 +1,22 @@
+pub mod data;
+
+use std::pin::Pin;
+use chrono::Duration;
+use log::error;
 use crate::spider::{Spider, SpiderMetadata, Support};
 
-#[derive(Debug, Default)]
-pub struct Policy {}
+#[derive(Debug)]
+pub struct Policy {
+    pub sort_update_interval: Duration,
+}
+
+impl Default for Policy {
+    fn default() -> Self {
+        Self {
+            sort_update_interval: Duration::days(7),
+        }
+    }
+}
 
 struct PropertySpider {
     id: &'static str,
@@ -36,9 +51,23 @@ impl Keeper {
         self.spiders.push(PropertySpider::new(T::id(), &T::SUPPORTED, Box::new(spider)))
     }
 
-    pub fn run(&mut self) {
+    pub async fn run(&mut self) {
         loop {
+            for x in (&self.spiders).iter().filter(|v| {
+                v.supported.get_sort == true && v.supported.get_novel_from_sort == true
+            }) {
 
+                // 获取分类
+                let sort = match x.inner.sorts().await {
+                    Ok(sorts) => {
+                        sorts
+                    }
+                    Err(e) => {
+                        error!("获取分类失败; id={}, err={}", x.id, e);
+                        continue;
+                    }
+                };
+            }
         }
     }
 }

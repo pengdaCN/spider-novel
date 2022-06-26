@@ -91,6 +91,14 @@ fn into() {
         last_updated_at: None,
         last_updated_section_name: None
     };
+}
 
+#[test]
+fn get_snowflake() {
+    use snowflake::SnowflakeIdGenerator;
 
+    let mut gen = SnowflakeIdGenerator::new(1,1);
+    for _ in 0..100 {
+        println!("{}", gen.generate())
+    }
 }
