@@ -14,16 +14,14 @@ chrono = "0.4.19"
 static_init = "1.0.2"
 log = "0.4"
 fast_log = "1.5.17"
-serde = "1.0.137"
 async-trait = "0.1.56"
 rs-snowflake = "0.6.0"
-[dependencies.sea-orm]
-version = "0.8.0"
-features = [
-    "macros",
-    "with-chrono",
-    "sqlx-sqlite",
-    "runtime-tokio-native-tls"
-]
+rbson = "2.0"
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+[dependencies.rbatis]
+version = "3.1"
+features = ["sqlite", "runtime-tokio-rustls", "debug_mode"]
 [dev-dependencies]
 tokio-test = "0.4.2"

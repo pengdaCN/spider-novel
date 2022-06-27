@@ -121,7 +121,7 @@ fn links(sort: &str, opt: GetOpt) -> Option<Vec<String>> {
     match opt {
         GetOpt::First => {
             let links = vec![String::from(sort)];
-            Some(vec![String::new()])
+            Some(links)
         }
         GetOpt::Full => {
             None
