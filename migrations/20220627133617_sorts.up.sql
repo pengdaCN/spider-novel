@@ -1,3 +1,4 @@
+-- Add up migration script here
 create table if not exists sort
 (
     id                 integer not null,
@@ -7,4 +8,4 @@ create table if not exists sort
     relation_spider_id text,
     relation_id        text,
     primary key (id, name)
-)
+);

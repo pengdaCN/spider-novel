@@ -1,27 +1,35 @@
+use std::env;
+use chrono::format::Fixed::RFC3339;
 use chrono::Utc;
-use fast_log::Config;
-use rbatis::crud::CRUD;
-
-use rbatis::rbatis::Rbatis;
-use spider_novel::keeper::data::module::Sort;
+use dotenv::dotenv;
+use sea_query::Query;
+use snowflake::SnowflakeIdGenerator;
+use sqlx::sqlite::SqlitePoolOptions;
+use tokio::test;
 
 #[test]
-fn insert_sort() {
-    fast_log::init(Config::new().console()).unwrap();
+async fn insert_sort() {
+    dotenv().ok();
 
-    tokio_test::block_on( async {
-        let rb =Rbatis::new();
-        rb.link("sqlite://data.db").await.unwrap();
+    let mut gen = SnowflakeIdGenerator::new(1, 1);
 
-        let sort = Sort{
-            id: 100,
-            created_at: Utc::now().into(),
-            updated_at: None,
-            name: "cc".to_string(),
-            relation_spider_id: None,
-            relation_id: None
-        };
+    let link = env::var("DATABASE_URL").expect("MISS DATABASE_URL");
 
-        rb.save(&sort, &[]).await.unwrap();
-    })
+    let mut pool = SqlitePoolOptions::new().connect(&link).await.unwrap();
+
+    let id = gen.generate();
+    let created_at = Utc::now();
+    sqlx::query!(r#"
+    insert into sort
+    (id, created_at, name, relation_spider_id, relation_id)
+    values
+    (?,?,?,?,?)"#, id, created_at, "x", "xx", 10)
+        // .bind((gen.generate(), Utc::now(), "x", "xx", 10))
+        .execute(&pool)
+        .await
+        .unwrap();
+}
+
+#[test]
+async fn build_sql() {
 }

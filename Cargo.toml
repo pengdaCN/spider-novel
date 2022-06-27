@@ -16,12 +16,15 @@ log = "0.4"
 fast_log = "1.5.17"
 async-trait = "0.1.56"
 rs-snowflake = "0.6.0"
-rbson = "2.0"
+dotenv = "0.15.0"
 [dependencies.serde]
 version = "1"
 features = ["derive"]
-[dependencies.rbatis]
-version = "3.1"
-features = ["sqlite", "runtime-tokio-rustls", "debug_mode"]
-[dev-dependencies]
-tokio-test = "0.4.2"
+[dependencies.sqlx]
+version = "0.6"
+features = [
+    "offline",
+    "sqlite",
+    "runtime-tokio-rustls",
+    "chrono"
+]
