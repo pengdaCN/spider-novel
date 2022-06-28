@@ -1,10 +1,10 @@
 use std::env;
 
-use crate::keeper::data::sort;
 use chrono::Duration;
 use log::error;
 use sea_orm::Database;
 
+use crate::keeper::data::sort;
 use crate::spider::{Sort, Spider, SpiderMetadata, Support};
 
 pub mod data;
@@ -50,8 +50,8 @@ impl Keeper {
     }
 
     pub fn add_spider<T>(&mut self, spider: T)
-    where
-        T: SpiderMetadata + Spider + 'static,
+        where
+            T: SpiderMetadata + Spider + 'static,
     {
         self.spiders.push(PropertySpider::new(
             T::id(),
@@ -64,8 +64,8 @@ impl Keeper {
         let db = Database::connect(
             env::var("DATABASE_URL").expect("require DATABASE_URL environment variable"),
         )
-        .await
-        .expect("open database failed");
+            .await
+            .expect("open database failed");
 
         loop {
             for x in (&self.spiders)
@@ -73,25 +73,38 @@ impl Keeper {
                 .filter(|v| v.supported.get_sort == true && v.supported.get_novel_from_sort == true)
             {
                 // 获取分类
-                let sort = if let Ok(data) = sort::list(
+                let sorts = match sort::list(
                     &db,
                     Some(sort::ListOpt {
                         created_at_less_than: None,
                         relation_spider_id: Some(x.id),
                     }),
                 )
-                .await
+                    .await
                 {
-                    data.into_iter().map(Sort::from).collect()
-                } else {
-                    match x.inner.sorts().await {
-                        Ok(sorts) => sorts,
-                        Err(e) => {
-                            error!("获取分类失败; id={}, err={}", x.id, e);
-                            continue;
+                    Ok(data) => data.into_iter().map(Sort::from).collect(),
+                    Err(e) => {
+                        error!("从数据库获取分类失败: {}", e);
+                        match x.inner.sorts().await {
+                            Ok(sorts) => {
+                                // 保存数据
+                                let _ = sort::add_or_recover(&db, x.id, &sorts).await.or_else(|e| {
+                                    error!("插入分类信息失败: {}", e);
+                                    Err(e)
+                                });
+
+                                sorts
+                            }
+                            Err(e) => {
+                                error!("获取分类失败; id={}, err={}", x.id, e);
+                                continue;
+                            }
                         }
                     }
                 };
+
+                // 获取分类下小说信息
+
             }
         }
     }

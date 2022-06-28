@@ -13,11 +13,11 @@ async fn add() {
     let data: Vec<Sort> = vec![
         Sort {
             id: SortID::from(20 as i64),
-            name: "xx2xa".to_string(),
+            name: "xx2x3a".to_string(),
         },
         Sort {
             id: SortID::from(10 as i64),
-            name: "xx12".to_string(),
+            name: "xx123".to_string(),
         },
     ];
 

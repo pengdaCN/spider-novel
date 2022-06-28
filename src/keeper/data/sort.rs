@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::*;
 use sea_orm::ActiveValue::Set;
@@ -38,7 +38,7 @@ pub async fn add_or_recover<'a>(
     let id = String::from(id);
     let _ = db
         .transaction(|tx| {
-            Box::pin(async {
+            Box::pin(async move {
                 let _ = sort::Entity::delete_many()
                     .filter(sort::Column::RelationKindId.eq(id))
                     .exec(tx)
@@ -74,5 +74,9 @@ pub async fn list(db: &DatabaseConnection, opts: Option<ListOpt<'_>>) -> Result<
         sort::Entity::find().filter(cond).all(db).await?
     };
 
-    Ok(data)
+    if !data.is_empty() {
+        Ok(data)
+    } else {
+        Err(anyhow!("not found record"))
+    }
 }
