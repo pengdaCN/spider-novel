@@ -1,6 +1,8 @@
-extern crate core;
+use static_init::dynamic;
 
+pub mod keeper;
 pub mod qubige;
 pub mod spider;
-pub mod keeper;
-pub mod common;
+
+#[dynamic]
+static mut GEN: snowflake::SnowflakeIdGenerator = { snowflake::SnowflakeIdGenerator::new(1, 1) };

@@ -1,5 +1,3 @@
-use std::fmt::format;
-use std::io::Write;
 use std::ops::Range;
 
 use anyhow::Result;
@@ -20,33 +18,19 @@ const SELECT_INTRO: &str = "div.desc.xs-hidden";
 const SELECT_SECTION: &str = "div.section-box > ul > li > a";
 
 #[dynamic]
-static SELECTOR_NOVEL: Selector = {
-    Selector::parse(SELECT_NOVEL).unwrap()
-};
+static SELECTOR_NOVEL: Selector = { Selector::parse(SELECT_NOVEL).unwrap() };
 #[dynamic]
-static SELECTOR_LIST: Selector = {
-    Selector::parse(SELECT_LIST).unwrap()
-};
+static SELECTOR_LIST: Selector = { Selector::parse(SELECT_LIST).unwrap() };
 #[dynamic]
-static SELECTOR_NAME: Selector = {
-    Selector::parse(SELECT_NAME).unwrap()
-};
+static SELECTOR_NAME: Selector = { Selector::parse(SELECT_NAME).unwrap() };
 #[dynamic]
-static SELECTOR_AUTHOR: Selector = {
-    Selector::parse(SELECT_AUTHOR).unwrap()
-};
+static SELECTOR_AUTHOR: Selector = { Selector::parse(SELECT_AUTHOR).unwrap() };
 #[dynamic]
-static SELECTOR_UPDATE_AT: Selector = {
-    Selector::parse(SELECT_UPDATE_AT).unwrap()
-};
+static SELECTOR_UPDATE_AT: Selector = { Selector::parse(SELECT_UPDATE_AT).unwrap() };
 #[dynamic]
-static SELECTOR_INTRO: Selector = {
-    Selector::parse(SELECT_INTRO).unwrap()
-};
+static SELECTOR_INTRO: Selector = { Selector::parse(SELECT_INTRO).unwrap() };
 #[dynamic]
-static SELECTOR_SECTION: Selector = {
-    Selector::parse(SELECT_SECTION).unwrap()
-};
+static SELECTOR_SECTION: Selector = { Selector::parse(SELECT_SECTION).unwrap() };
 
 #[derive(Debug)]
 pub struct Novel {
@@ -64,7 +48,12 @@ pub enum GetOpt {
 }
 
 impl Novel {
-    pub fn new(name: String, author: String, update_at: Option<DateTime<Utc>>, short_link: String) -> Self {
+    pub fn new(
+        name: String,
+        author: String,
+        update_at: Option<DateTime<Utc>>,
+        short_link: String,
+    ) -> Self {
         Self {
             name,
             author,
@@ -123,9 +112,7 @@ fn links(sort: &str, opt: GetOpt) -> Option<Vec<String>> {
             let links = vec![String::from(sort)];
             Some(links)
         }
-        GetOpt::Full => {
-            None
-        }
+        GetOpt::Full => None,
         GetOpt::Specify(idx) => {
             if idx < 1 {
                 return None;
@@ -221,7 +208,9 @@ pub async fn from_sort(sort: &str, opt: GetOpt) -> Result<Vec<Novel>> {
             }
 
             let update_at: Option<DateTime<Utc>> = {
-                if let Ok(date_time) = DateTime::parse_from_str(&format!("{} +08:00", update_at), "%Y-%m-%d %z") {
+                if let Ok(date_time) =
+                    DateTime::parse_from_str(&format!("{} +08:00", update_at), "%Y-%m-%d %z")
+                {
                     Some(date_time.into())
                 } else {
                     None

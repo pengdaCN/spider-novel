@@ -1,14 +1,12 @@
-use scraper::{Html, Selector};
 use anyhow::Result;
+use scraper::Selector;
 use static_init::dynamic;
 
 const LINK_SORT: &str = "https://www.qubige.com/sort/";
 const SELECT_SORT: &str = "div.cmd-bd > a";
 
 #[dynamic]
-static SELECTOR_SORT: Selector = {
-    Selector::parse(SELECT_SORT).unwrap()
-};
+static SELECTOR_SORT: Selector = { Selector::parse(SELECT_SORT).unwrap() };
 
 #[derive(Debug)]
 pub struct Sort {
@@ -21,7 +19,6 @@ impl Sort {
         super::link(&self.link)
     }
 }
-
 
 pub async fn get_sort() -> Result<Vec<Sort>> {
     let mut sorts = Vec::new();
@@ -46,10 +43,7 @@ pub async fn get_sort() -> Result<Vec<Sort>> {
             }
         };
 
-        sorts.push(Sort {
-            name,
-            link: href,
-        })
+        sorts.push(Sort { name, link: href })
     }
 
     Ok(sorts)

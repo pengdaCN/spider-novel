@@ -6,6 +6,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use tokio::sync::mpsc::Receiver;
 
+use crate::keeper::data::entity::sort::Model as SortModel;
+
 #[derive(Debug, Copy, Clone)]
 pub struct SortID(i64);
 
@@ -33,10 +35,23 @@ pub struct Sort {
     pub name: String,
 }
 
+impl From<&'_ SortModel> for Sort {
+    fn from(m: &SortModel) -> Self {
+        Self {
+            id: SortID(m.id),
+            name: m.name.clone(),
+        }
+    }
+}
+
+impl From<SortModel> for Sort {
+    fn from(m: SortModel) -> Self {
+        (&m).into()
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Ord, Eq)]
 pub struct NovelID(i64);
-
-type N1 = NovelID;
 
 impl Into<i64> for NovelID {
     fn into(self) -> i64 {

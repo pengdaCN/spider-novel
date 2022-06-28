@@ -1,13 +1,13 @@
 use anyhow::Result;
-use log::{debug, info};
-use reqwest::{Client, header};
+use log::debug;
 use reqwest::header::HeaderValue;
+use reqwest::{header, Client};
 use scraper::Html;
 use static_init::dynamic;
 
-pub mod sort;
-pub mod novel;
 pub mod data;
+pub mod novel;
+pub mod sort;
 
 const LINK_BASE: &str = "https://www.qubige.com/";
 
@@ -18,10 +18,7 @@ static CLIENT: Client = {
          HeaderValue::from_static("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.80 Safari/537.36 Edg/98.0.1108.43")),
     ].into_iter().collect();
 
-    Client::builder()
-        .default_headers(h)
-        .build()
-        .unwrap()
+    Client::builder().default_headers(h).build().unwrap()
 };
 
 pub(crate) fn link(path: &str) -> String {

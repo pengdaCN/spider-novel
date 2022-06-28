@@ -1,5 +1,4 @@
 use anyhow::Result;
-use log::info;
 use scraper::Selector;
 use static_init::dynamic;
 
@@ -7,9 +6,7 @@ use crate::qubige::{document, link};
 
 const SELECT_CONTENT: &str = "div#content";
 #[dynamic]
-static SELECTOR_CONTENT: Selector = {
-    Selector::parse(SELECT_CONTENT).unwrap()
-};
+static SELECTOR_CONTENT: Selector = { Selector::parse(SELECT_CONTENT).unwrap() };
 
 #[derive(Debug)]
 pub struct Section {
@@ -19,19 +16,14 @@ pub struct Section {
 
 impl Section {
     pub fn new(name: String, short_link: String) -> Self {
-        Self {
-            name,
-            short_link,
-        }
+        Self { name, short_link }
     }
 
     pub async fn contents(&self) -> Result<Option<Vec<String>>> {
         let doc = document(&self.link()).await?;
 
         if let Some(elem_contents) = doc.select(&SELECTOR_CONTENT).next() {
-            let contents = elem_contents.text().map(|s| {
-                String::from(s)
-            }).collect();
+            let contents = elem_contents.text().map(|s| String::from(s)).collect();
 
             Ok(Some(contents))
         } else {
