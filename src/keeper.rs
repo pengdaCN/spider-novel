@@ -50,8 +50,8 @@ impl Keeper {
     }
 
     pub fn add_spider<T>(&mut self, spider: T)
-        where
-            T: SpiderMetadata + Spider + 'static,
+    where
+        T: SpiderMetadata + Spider + 'static,
     {
         self.spiders.push(PropertySpider::new(
             T::id(),
@@ -64,8 +64,8 @@ impl Keeper {
         let db = Database::connect(
             env::var("DATABASE_URL").expect("require DATABASE_URL environment variable"),
         )
-            .await
-            .expect("open database failed");
+        .await
+        .expect("open database failed");
 
         loop {
             for x in (&self.spiders)
@@ -80,7 +80,7 @@ impl Keeper {
                         relation_spider_id: Some(x.id),
                     }),
                 )
-                    .await
+                .await
                 {
                     Ok(data) => data.into_iter().map(Sort::from).collect(),
                     Err(e) => {
@@ -88,10 +88,11 @@ impl Keeper {
                         match x.inner.sorts().await {
                             Ok(sorts) => {
                                 // 保存数据
-                                let _ = sort::add_or_recover(&db, x.id, &sorts).await.or_else(|e| {
-                                    error!("插入分类信息失败: {}", e);
-                                    Err(e)
-                                });
+                                let _ =
+                                    sort::add_or_recover(&db, x.id, &sorts).await.or_else(|e| {
+                                        error!("插入分类信息失败: {}", e);
+                                        Err(e)
+                                    });
 
                                 sorts
                             }
@@ -104,7 +105,7 @@ impl Keeper {
                 };
 
                 // 获取分类下小说信息
-
+                // 检查时候需要再次抓去分类
             }
         }
     }

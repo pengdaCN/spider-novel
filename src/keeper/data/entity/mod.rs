@@ -2,4 +2,6 @@
 
 pub mod prelude;
 
+pub mod novel;
+pub mod novel_relation;
 pub mod sort;

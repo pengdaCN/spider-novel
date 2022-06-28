@@ -6,7 +6,7 @@ use crate::qubige::{document, link};
 
 const SELECT_CONTENT: &str = "div#content";
 #[dynamic]
-static SELECTOR_CONTENT: Selector = { Selector::parse(SELECT_CONTENT).unwrap() };
+static SELECTOR_CONTENT: Selector = Selector::parse(SELECT_CONTENT).unwrap();
 
 #[derive(Debug)]
 pub struct Section {

@@ -1,3 +1,3 @@
 pub mod entity;
-pub mod sort;
 pub mod novel;
+pub mod sort;
