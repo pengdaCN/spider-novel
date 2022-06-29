@@ -37,3 +37,28 @@ async fn list_sort() {
         println!("{:?}", x);
     }
 }
+
+macro_rules! add {
+    ($p1: expr, $p2: expr) => {
+        $p1 + $p2
+    };
+}
+
+#[test]
+async fn add2() {
+    // add!(1, 1.2)
+}
+
+#[derive(Eq, PartialEq)]
+struct S(String);
+
+impl S {
+    fn compare(&self, other: &self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[test]
+async fn test_s() {
+    // S::compare()
+}
