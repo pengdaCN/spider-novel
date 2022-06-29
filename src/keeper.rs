@@ -5,7 +5,7 @@ use log::error;
 use sea_orm::Database;
 
 use crate::keeper::data::sort;
-use crate::spider::{Sort, Spider, SpiderMetadata, Support};
+use crate::spider::{Position, Sort, Spider, SpiderMetadata, Support};
 
 pub mod data;
 
@@ -106,6 +106,9 @@ impl Keeper {
 
                 // 获取分类下小说信息
                 // 检查时候需要再次抓去分类
+                for x in &sorts {
+                    let recv = x.inner.novels_by_sort_id(x.id, Position::Full).await;
+                }
             }
         }
     }
