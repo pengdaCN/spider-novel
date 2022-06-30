@@ -1,9 +1,9 @@
-use sea_orm::prelude::*;
-use anyhow::Result;
-use sea_orm::ActiveValue::Set;
-use sea_orm::{Condition, QuerySelect, TransactionTrait};
 use crate::common::snowid::id;
 use crate::ddxsku::DATA_URL;
+use anyhow::Result;
+use sea_orm::prelude::*;
+use sea_orm::ActiveValue::Set;
+use sea_orm::{Condition, QuerySelect, TransactionTrait};
 
 pub mod sort;
 
@@ -17,12 +17,11 @@ pub async fn add_or_recover(db: &DbConn, name: &str, link: &str) -> Result<i64> 
         .filter(
             Condition::all()
                 .add(sort::Column::Name.eq(name))
-                .add(sort::Column::SpiderId.eq(DATA_URL))
-        ).one(db).await.and_then(|x: Option<sort::Model>| {
-        Ok(x.and_then(|x| {
-            Some(x.id)
-        }))
-    })?;
+                .add(sort::Column::SpiderId.eq(DATA_URL)),
+        )
+        .one(db)
+        .await
+        .and_then(|x: Option<sort::Model>| Ok(x.and_then(|x| Some(x.id))))?;
     let data = sort::ActiveModel {
         id: Set(id),
         spider_id: Set(String::from(DATA_URL)),
@@ -40,8 +39,8 @@ pub async fn add_or_recover(db: &DbConn, name: &str, link: &str) -> Result<i64> 
             let _ = sort::Entity::insert(data).exec(tx).await?;
             Ok::<(), DbErr>(())
         })
-    }).await?;
-
+    })
+    .await?;
 
     Ok(id)
 }
