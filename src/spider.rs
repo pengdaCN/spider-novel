@@ -71,47 +71,53 @@ impl Display for NovelID {
     }
 }
 
+enum NovelState {
+    Updating,
+    Finished,
+}
+
 pub struct Novel {
     pub id: NovelID,
     pub name: String,
     pub cover: Option<String>,
     pub author: String,
     pub last_updated_at: Option<DateTime<Utc>>,
-    pub last_updated_section_name: Option<SectionName>,
+    pub last_updated_section_name: Option<String>,
+    pub state: Option<NovelState>,
 }
 
-pub enum SectionName {
-    Raw(String),
-    Number(i32),
-    Complex(i32, String),
-}
+// pub enum SectionName {
+//     Raw(String),
+//     Number(i32),
+//     Complex(i32, String),
+// }
+//
+// impl Display for SectionName {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         match *self {
+//             Self::Raw(ref name) => {
+//                 write!(f, "{name}")
+//             }
+//             Self::Number(n) => {
+//                 write!(f, "第{n}章")
+//             }
+//             Self::Complex(n, ref name) => {
+//                 write!(f, "第{n}章: {name}")
+//             }
+//         }
+//     }
+// }
 
-impl Display for SectionName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Self::Raw(ref name) => {
-                write!(f, "{name}")
-            }
-            Self::Number(n) => {
-                write!(f, "第{n}章")
-            }
-            Self::Complex(n, ref name) => {
-                write!(f, "第{n}章: {name}")
-            }
-        }
-    }
-}
+pub struct SectionID(i32);
 
-pub struct SectionID(i64);
-
-impl Into<i64> for SectionID {
-    fn into(self) -> i64 {
+impl Into<i32> for SectionID {
+    fn into(self) -> i32 {
         self.0
     }
 }
 
-impl From<i64> for SectionID {
-    fn from(id: i64) -> Self {
+impl From<i32> for SectionID {
+    fn from(id: i32) -> Self {
         Self(id)
     }
 }
@@ -125,7 +131,7 @@ impl Display for SectionID {
 pub struct Section {
     pub id: SectionID,
     pub novel_id: NovelID,
-    pub name: SectionName,
+    pub name: String,
     pub update_at: Option<DateTime<Utc>>,
     pub text: String,
 }
@@ -175,7 +181,7 @@ pub trait Spider: Sync {
 
     // 通过小说名字搜索小说
     #[allow(unused_variables)]
-    async fn search(&self, name: &str) -> Result<Option<Novel>> {
+    async fn search(&self, name: &str) -> Result<Option<Vec<Novel>>> {
         unimplemented!()
     }
 }
