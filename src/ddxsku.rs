@@ -10,7 +10,7 @@ use scraper::Selector;
 use sea_orm::DbConn;
 use tokio::sync::mpsc::Receiver;
 
-use crate::keeper::data::sort::add_or_recover;
+use crate::ddxsku::data::add_or_recover;
 use static_init::dynamic;
 
 pub const DATA_URL: &str = "http://www.ddxsku.com/";
@@ -58,13 +58,20 @@ macro_rules! elem_attr {
 #[async_trait]
 impl Spider for DDSpider<'_> {
     async fn sorts(&self) -> Result<Vec<Sort>> {
-        let page = get(DATA_URL).await?;
+        let mut raw_links = Vec::new();
+        {
+            let page = get(DATA_URL).await?;
+            for elem in page.select(&SELECTOR_SORT) {
+                let (name, link): (String, String) = elem_attr!(elem, attr = "href", continue);
 
-        let mut sorts = Vec::new();
-        for elem in page.select(&SELECTOR_SORT) {
-            let (name, link): (String, String) = elem_attr!(elem, attr = "href", continue);
+                raw_links.push((name, link))
+            }
+        }
 
-            let id = data::add_or_recover(self.db, &name, &link).await?;
+        let mut sorts = Vec::with_capacity(raw_links.len());
+        for (name, link) in raw_links {
+            let id = add_or_recover(&self.db, &name, &link).await?;
+
             sorts.push(Sort {
                 id: id.into(),
                 name,

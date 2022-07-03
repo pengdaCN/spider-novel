@@ -71,7 +71,7 @@ impl Display for NovelID {
     }
 }
 
-enum NovelState {
+pub enum NovelState {
     Updating,
     Finished,
 }
