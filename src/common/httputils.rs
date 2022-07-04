@@ -1,7 +1,9 @@
+use std::ops::Deref;
+
 use anyhow::Result;
 use log::debug;
+use reqwest::{Client, header};
 use reqwest::header::HeaderValue;
-use reqwest::{header, Client};
 use scraper::Html;
 use static_init::dynamic;
 
@@ -23,3 +25,22 @@ pub async fn get(url: &str) -> Result<Html> {
 
     Ok(Html::parse_document(&text))
 }
+
+
+pub struct WrapSend<T>(T);
+
+impl <T> WrapSend<T> {
+    pub fn new(x: T) -> Self {
+        Self(x)
+    }
+}
+
+impl<T> Deref for WrapSend<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+unsafe impl<T> Send for WrapSend<T> {}
