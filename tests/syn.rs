@@ -4,12 +4,12 @@ fn t_match() {
     enum TM {
         T1,
         T2,
-        T3
+        T3,
     }
 
     fn print_tm(x: TM) {
         match x {
-            x @ (TM::T1| TM::T2) => {
+            x @ (TM::T1 | TM::T2) => {
                 println!("t1|t2");
 
                 println!("{:?}", x);

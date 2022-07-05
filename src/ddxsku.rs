@@ -29,7 +29,6 @@ const SELECT_LAST_PAGE: &str = r#"//a[@class="last"]"#;
 #[dynamic]
 static SELECTOR_LAST_PAGE: Xpath = parse(SELECT_LAST_PAGE).unwrap();
 
-
 pub struct DDSpider {
     db: Arc<DbConn>,
 }
@@ -117,16 +116,18 @@ impl Spider for DDSpider {
                     let page = html::parse(&get(&first_url).await?)?;
 
                     // 处理第一页
-                    if matches!(x, Position::First | Position::Full) {
+                    if matches!(x, Position::First | Position::Full) {}
 
-                    }
-
-                    let page_num: i32 = if let Some(elem) = SELECTOR_LAST_PAGE.apply(&page)?.into_iter().next() {
-                        elem_text!(page, elem, {return Ok::<(), anyhow::Error>(());}).parse()?
-                    } else {
-                        warn!("没有获取到末尾页数");
-                        return Ok::<(), anyhow::Error>(());
-                    };
+                    let page_num: i32 =
+                        if let Some(elem) = SELECTOR_LAST_PAGE.apply(&page)?.into_iter().next() {
+                            elem_text!(page, elem, {
+                                return Ok::<(), anyhow::Error>(());
+                            })
+                            .parse()?
+                        } else {
+                            warn!("没有获取到末尾页数");
+                            return Ok::<(), anyhow::Error>(());
+                        };
                 }
                 Position::Specify(_) => {}
                 Position::Range(_) => {}
