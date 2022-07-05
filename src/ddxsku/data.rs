@@ -1,7 +1,7 @@
 use anyhow::Result;
-use sea_orm::{Condition, QuerySelect, TransactionTrait};
-use sea_orm::ActiveValue::Set;
 use sea_orm::prelude::*;
+use sea_orm::ActiveValue::Set;
+use sea_orm::{Condition, QuerySelect, TransactionTrait};
 
 use crate::common::snowid::id;
 use crate::ddxsku::DATA_URL;
@@ -42,15 +42,17 @@ pub async fn add_or_recover(db: &DbConn, name: &str, link: &str) -> Result<i64> 
             Ok::<(), DbErr>(())
         })
     })
-        .await?;
+    .await?;
 
     Ok(id)
 }
 
 pub async fn sort_by_id(db: &DbConn, id: &SortID) -> Result<Option<sort::Model>> {
     let selector: Select<_> = sort::Entity::find();
-    let x = selector.filter(sort::Column::Id.eq(<SortID as Into<i64>>::into(*id)))
-        .one(db).await?;
+    let x = selector
+        .filter(sort::Column::Id.eq(<SortID as Into<i64>>::into(*id)))
+        .one(db)
+        .await?;
 
     Ok(x)
 }

@@ -1,10 +1,7 @@
-use std::ops::Deref;
-
 use anyhow::Result;
 use log::debug;
-use reqwest::{Client, header};
 use reqwest::header::HeaderValue;
-use scraper::Html;
+use reqwest::{header, Client};
 use static_init::dynamic;
 
 #[dynamic]
@@ -17,30 +14,11 @@ static CLIENT: Client = {
     Client::builder().default_headers(h).build().unwrap()
 };
 
-pub async fn get(url: &str) -> Result<Html> {
+pub async fn get(url: &str) -> Result<String> {
     let resp = CLIENT.execute(CLIENT.get(url).build().unwrap()).await?;
     let text = resp.text().await?;
 
     debug!("url = {}; body = {}", url, &text);
 
-    Ok(Html::parse_document(&text))
+    Ok(text)
 }
-
-
-pub struct WrapSend<T>(T);
-
-impl <T> WrapSend<T> {
-    pub fn new(x: T) -> Self {
-        Self(x)
-    }
-}
-
-impl<T> Deref for WrapSend<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-unsafe impl<T> Send for WrapSend<T> {}

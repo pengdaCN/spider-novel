@@ -1,5 +1,6 @@
 use sea_orm::prelude::*;
 
+#[allow(unused_imports)]
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
