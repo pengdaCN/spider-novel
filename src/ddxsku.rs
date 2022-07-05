@@ -124,7 +124,8 @@ impl DDSpider {
                         });
 
                         Some((name, link, last_section, author, last_updated_at, state))
-                    });
+                    })
+                    .filter(|x| x.is_some());
 
                 Some(iter)
             })
