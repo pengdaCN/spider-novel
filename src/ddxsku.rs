@@ -90,7 +90,7 @@ impl DDSpider {
                     .map(|x| {
                         let name = x.get(0)?.get_all_text(page)?;
                         let link: String = {
-                            let mut a = x.get(0)?.children(page).next()?;
+                            let a = x.get(0)?.children(page).next()?;
 
                             elem_attr!(page, a, attr = "href", {
                                 return None;
