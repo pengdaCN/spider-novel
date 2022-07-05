@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use log::error;
+use log::{error, warn};
 use sea_orm::DbConn;
 use skyscraper::html;
 use skyscraper::xpath::parse::parse;
@@ -25,9 +25,10 @@ const SELECT_SORT: &str = r#"//div[@class="main m_menu"]/ul/li"#;
 #[dynamic]
 static SELECTOR_SORT: Xpath = parse(SELECT_SORT).unwrap();
 
-const SELECT_PAGE: &str = r#"//div[@class="pagelink"]/a"#;
+const SELECT_LAST_PAGE: &str = r#"//a[@class="last"]"#;
 #[dynamic]
-static SELECTOR_PAGE: Xpath = parse(SELECT_PAGE).unwrap();
+static SELECTOR_LAST_PAGE: Xpath = parse(SELECT_LAST_PAGE).unwrap();
+
 
 pub struct DDSpider {
     db: Arc<DbConn>,
@@ -62,7 +63,7 @@ macro_rules! elem_attr {
 
 // 获取html中文本
 macro_rules! elem_text {
-    ($doc: expr, $elem: expr, $or:ident) => {{
+    ($doc: expr, $elem: expr, $or:tt) => {{
         if let Some(x) = $elem.get_all_text(&$doc) {
             x
         } else {
@@ -110,8 +111,26 @@ impl Spider for DDSpider {
                 return Ok::<(), anyhow::Error>(());
             };
 
-            let url = vec![DATA_URL, &sort.link].concat();
-            let first_page = get(&url).await?;
+            let first_url = vec![DATA_URL, &sort.link].concat();
+            match pos {
+                x @ (Position::Full | Position::First | Position::Last) => {
+                    let page = html::parse(&get(&first_url).await?)?;
+
+                    // 处理第一页
+                    if matches!(x, Position::First | Position::Full) {
+
+                    }
+
+                    let page_num: i32 = if let Some(elem) = SELECTOR_LAST_PAGE.apply(&page)?.into_iter().next() {
+                        elem_text!(page, elem, {return Ok::<(), anyhow::Error>(());}).parse()?
+                    } else {
+                        warn!("没有获取到末尾页数");
+                        return Ok::<(), anyhow::Error>(());
+                    };
+                }
+                Position::Specify(_) => {}
+                Position::Range(_) => {}
+            }
 
             Ok::<(), anyhow::Error>(())
         });

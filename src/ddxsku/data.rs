@@ -35,6 +35,7 @@ pub async fn add_or_recover(db: &DbConn, name: &str, link: &str) -> Result<i64> 
     db.transaction(|tx| {
         Box::pin(async move {
             if let Some(id) = old_id {
+                // TODO 删除原数据
                 // let _ = sort::delete_by_id(id).exec(tx).await?;
             }
 
