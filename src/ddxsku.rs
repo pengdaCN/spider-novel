@@ -88,7 +88,10 @@ impl DDSpider {
                     .map(|x| x.unwrap())
                     // 获取小说信息
                     .map(|x| {
+                        // 获取小说名，若没有则失败
                         let name = x.get(0)?.get_all_text(page)?;
+
+                        // 获取小说链接，若没有则失败
                         let link: String = {
                             let a = x.get(0)?.children(page).next()?;
 
@@ -96,11 +99,16 @@ impl DDSpider {
                                 return None;
                             })
                         };
+
+                        // 获取小说最新章节名
                         let last_section = x.get(1).and_then(|x| x.get_all_text(page));
+                        // 获取作者
                         let author = x
                             .get(2)
                             .and_then(|x| x.get_all_text(page))
                             .unwrap_or(String::from("unknown"));
+
+                        // 获取最近更新时间
                         let last_updated_at: Option<DateTime<Utc>> = x
                             .get(4)
                             .and_then(|x| x.get_all_text(page))
@@ -113,6 +121,7 @@ impl DDSpider {
                             })
                             .map(|x| x.into());
 
+                        // 获取完结状态
                         let state = x.get(5).and_then(|x| x.get_all_text(page)).and_then(|x| {
                             let state = match x.trim() {
                                 "连载中" => NovelState::Updating,
@@ -125,6 +134,7 @@ impl DDSpider {
 
                         Some((name, link, last_section, author, last_updated_at, state))
                     })
+                    // 过滤掉解析失败的
                     .filter(|x| x.is_some());
 
                 Some(iter)
