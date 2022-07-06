@@ -23,21 +23,40 @@ pub mod data;
 
 pub const DATA_URL: &str = "http://www.ddxsku.com/";
 
+// 获取小说分类
 const SELECT_SORT: &str = r#"//div[@class="main m_menu"]/ul/li"#;
 #[dynamic]
 static SELECTOR_SORT: Xpath = parse(SELECT_SORT).unwrap();
 
+// 获取最后一条分页
 const SELECT_LAST_PAGE: &str = r#"//a[@class="last"]"#;
 #[dynamic]
 static SELECTOR_LAST_PAGE: Xpath = parse(SELECT_LAST_PAGE).unwrap();
 
+// 获取小说列表
 const SELECT_NOVEL_TABLE: &str = r#"//tbody/tr"#;
 #[dynamic]
 static SELECTOR_NOVEL_TABLE: Xpath = parse(SELECT_NOVEL_TABLE).unwrap();
 
+// 获取列表中的小说条目
 const SELECT_NOVEL_ITEM: &str = r#"/td"#;
 #[dynamic]
 static SELECTOR_NOVEL_ITEM: Xpath = parse(SELECT_NOVEL_ITEM).unwrap();
+
+// 获取小说封面链接
+const SELECT_NOVEL_COVER: &str = r#"//div[@class="fl"][1]//img/@src"#;
+#[dynamic]
+static SELECTOR_NOVEL_COVER: Xpath = parse(SELECT_NOVEL_COVER).unwrap();
+
+// 获取小说最近更新时间
+const SELECT_NOVEL_LAST_UPDATED_AT: &str =
+    r#"//div[@class="fl"][last()]/table/tbody/tr[2]/td[last()]"#;
+#[dynamic]
+static SELECTOR_NOVEL_LAST_UPDATED_AT: Xpath = parse(SELECT_NOVEL_LAST_UPDATED_AT).unwrap();
+
+const SELECT_NOVEL_INTRO: &str = r#"//dl[@id="content"]/dd[last()]/p[2]"#;
+#[dynamic]
+static SELECTOR_NOVEL_INTRO: Xpath = parse(SELECT_NOVEL_INTRO).unwrap();
 
 // 获取html中的属性
 macro_rules! elem_attr {
@@ -71,7 +90,7 @@ pub struct DDSpider {
 
 impl DDSpider {
     // 返回一个小说元素的迭代器
-    fn novels_from_page<'a>(page: &'a HtmlDocument) -> impl Iterator + 'a {
+    pub fn novels_from_page<'a>(page: &'a HtmlDocument) -> impl Iterator + 'a {
         SELECTOR_NOVEL_TABLE
             .apply(&page)
             .ok()
@@ -141,6 +160,31 @@ impl DDSpider {
             })
             .into_iter()
             .flatten()
+    }
+
+    // 获取封面链接，最近更新时间，简介
+    pub fn parse_detail_novel(
+        page: &HtmlDocument,
+    ) -> (Option<String>, Option<DateTime<Utc>>, Option<String>) {
+        fn elem_text(page: &HtmlDocument, selector: &Xpath) -> Option<String> {
+            selector
+                .apply(page)
+                .ok()
+                .and_then(|x| x.into_iter().next())
+                .and_then(|x| x.get_all_text(page))
+        }
+
+        let cover = elem_text(page, &SELECTOR_NOVEL_COVER);
+
+        let updated_at: Option<DateTime<Utc>> = elem_text(page, &SELECTOR_NOVEL_LAST_UPDATED_AT)
+            .and_then(|x| {
+                DateTime::parse_from_str(&format!("{x} +08:00"), "%Y-%m-%d %H:%M:%S %z").ok()
+            })
+            .map(|x| x.into());
+
+        let intro = elem_text(page, &SELECTOR_NOVEL_INTRO);
+
+        (cover, updated_at, intro)
     }
 }
 
