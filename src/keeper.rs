@@ -5,7 +5,7 @@ use log::error;
 use sea_orm::Database;
 
 use crate::keeper::data::sort;
-use crate::spider::{Position, Sort, Spider, SpiderMetadata, Support};
+use crate::spider::{Sort, Spider, SpiderMetadata, Support};
 
 pub mod data;
 

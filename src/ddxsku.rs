@@ -14,7 +14,7 @@ use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::Receiver;
 
 use crate::common::httputils::get;
-use crate::ddxsku::data::{add_or_recover, sort_by_id};
+use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, sort_by_id};
 use crate::spider::{
     Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider, SpiderMetadata, Support,
 };
@@ -90,7 +90,18 @@ pub struct DDSpider {
 
 impl DDSpider {
     // 返回一个小说元素的迭代器
-    pub fn novels_from_page<'a>(page: &'a HtmlDocument) -> impl Iterator + 'a {
+    pub fn novels_from_page<'a>(
+        page: &'a HtmlDocument,
+    ) -> impl Iterator<
+        Item = (
+            String,
+            String,
+            Option<String>,
+            String,
+            Option<DateTime<Utc>>,
+            Option<NovelState>,
+        ),
+    > + 'a {
         SELECTOR_NOVEL_TABLE
             .apply(&page)
             .ok()
@@ -154,7 +165,8 @@ impl DDSpider {
                         Some((name, link, last_section, author, last_updated_at, state))
                     })
                     // 过滤掉解析失败的
-                    .filter(|x| x.is_some());
+                    .filter(|x| x.is_some())
+                    .map(|x| x.unwrap());
 
                 Some(iter)
             })
@@ -185,6 +197,57 @@ impl DDSpider {
         let intro = elem_text(page, &SELECTOR_NOVEL_INTRO);
 
         (cover, updated_at, intro)
+    }
+
+    async fn parse_novels_from_page<'a>(&self, page: &HtmlDocument) -> Result<Vec<Novel>> {
+        let mut novels = Vec::with_capacity(10);
+        for (name, link, last_section, author, mut last_updated_at, state) in
+            Self::novels_from_page(&page)
+        {
+            // 获取小说详细信息
+            let mut cover = None;
+            let mut intro = None;
+            if let Some(x) = get(&link)
+                .await
+                .ok()
+                .and_then(|x| html::parse(&x).ok())
+                .and_then(|x| Some(Self::parse_detail_novel(&x)))
+            {
+                last_updated_at = x.1;
+                cover = x.0;
+                intro = x.2;
+            }
+
+            // 分离出小说id
+            let novel_id = match link
+                .split('/')
+                .last()
+                .and_then(|x| x.split('.').next())
+                .map(|x| String::from(x))
+            {
+                Some(x) => x,
+                None => {
+                    warn!("为解析出小说id, link: {}", link);
+                    continue;
+                }
+            };
+
+            // 存储小说信息
+            let id = add_or_recover_novel(&self.db, &name, &link, &author, &novel_id).await?;
+
+            novels.push(Novel {
+                id: id.into(),
+                name,
+                cover,
+                author,
+                intro,
+                last_updated_at,
+                last_updated_section_name: last_section,
+                state,
+            });
+        }
+
+        Ok(novels)
     }
 }
 
@@ -246,7 +309,13 @@ impl Spider for DDSpider {
 
                     // 处理第一页
                     if matches!(x, Position::First | Position::Full) {
-                        let novels = Self::novels_from_page(&page);
+                        self.parse_novels_from_page(&page)
+                            .await?
+                            .into_iter()
+                            .for_each(|x| {
+                                // 将获取到的小说信息发送到通道中
+                                tx.send(Ok(x));
+                            });
                     }
 
                     let page_num: i32 =
@@ -259,6 +328,12 @@ impl Spider for DDSpider {
                             warn!("没有获取到末尾页数");
                             return Ok::<(), anyhow::Error>(());
                         };
+
+                    match x {
+                        Position::Full => {}
+                        Position::Last => {}
+                        _ => unreachable!(),
+                    }
                 }
                 Position::Specify(_) => {}
                 Position::Range(_) => {}

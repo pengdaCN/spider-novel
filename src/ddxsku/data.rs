@@ -7,6 +7,7 @@ use crate::common::snowid::id;
 use crate::ddxsku::DATA_URL;
 use crate::spider::SortID;
 
+pub mod novel;
 pub mod sort;
 
 pub async fn add_or_recover(db: &DbConn, name: &str, link: &str) -> Result<i64> {
@@ -56,4 +57,14 @@ pub async fn sort_by_id(db: &DbConn, id: &SortID) -> Result<Option<sort::Model>>
         .await?;
 
     Ok(x)
+}
+
+pub async fn add_or_recover_novel(
+    db: &DbConn,
+    name: &str,
+    link: &str,
+    author: &str,
+    raw_id: &str,
+) -> Result<i64> {
+    unimplemented!()
 }

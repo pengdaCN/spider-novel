@@ -8,4 +8,4 @@ pub mod keeper;
 pub mod spider;
 
 #[dynamic]
-static mut GEN: snowflake::SnowflakeIdGenerator = { snowflake::SnowflakeIdGenerator::new(1, 1) };
+static mut GEN: snowflake::SnowflakeIdGenerator = snowflake::SnowflakeIdGenerator::new(1, 1);

@@ -1,15 +1,14 @@
 use sea_orm::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "ddxsku_spider_sorts")]
+#[derive(Debug, PartialEq, Clone, DeriveEntityModel)]
+#[sea_orm(table_name = "ddxsku_spider_novels")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
-    #[sea_orm(primary_key)]
-    pub spider_id: String,
-    #[sea_orm(primary_key)]
+    pub raw_id: String,
     pub name: String,
-    pub link: String,
+    pub author: String,
+    pub raw_link: String,
 }
 
 #[derive(Debug, Copy, Clone, EnumIter)]

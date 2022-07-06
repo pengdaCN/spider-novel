@@ -82,6 +82,7 @@ pub struct Novel {
     pub name: String,
     pub cover: Option<String>,
     pub author: String,
+    pub intro: Option<String>,
     pub last_updated_at: Option<DateTime<Utc>>,
     pub last_updated_section_name: Option<String>,
     pub state: Option<NovelState>,
