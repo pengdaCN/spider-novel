@@ -1,6 +1,8 @@
+use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use anyhow::Result;
+use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::{error, warn};
@@ -10,8 +12,8 @@ use skyscraper::html::HtmlDocument;
 use skyscraper::xpath::parse::parse;
 use skyscraper::xpath::Xpath;
 use static_init::dynamic;
-use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{channel, Sender};
 
 use crate::common::httputils::get;
 use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, sort_by_id};
@@ -249,6 +251,59 @@ impl DDSpider {
 
         Ok(novels)
     }
+
+    #[async_recursion]
+    async fn send_novels(
+        &self,
+        link: &str,
+        tx: Sender<Result<Novel>>,
+        pos: Position,
+    ) -> Result<()> {
+        match pos {
+            x @ (Position::Full | Position::First | Position::Last) => {
+                let first_url = vec![DATA_URL, &link].concat();
+                let page = html::parse(&get(&first_url).await?)?;
+
+                // 处理第一页
+                if matches!(x, Position::First | Position::Full) {
+                    for x in self.parse_novels_from_page(&page).await? {
+                        if let Err(e) = tx.send(Ok(x)).await {
+                            return Ok(());
+                        }
+                    }
+                }
+
+                let page_num: i32 =
+                    if let Some(elem) = SELECTOR_LAST_PAGE.apply(&page)?.into_iter().next() {
+                        elem_text!(page, elem, {
+                            return Ok(());
+                        })
+                        .parse()?
+                    } else {
+                        warn!("没有获取到末尾页数");
+                        return Ok(());
+                    };
+
+                match x {
+                    Position::Full => {
+                        return self
+                            .send_novels(link, tx, Position::Range(2..page_num + 1))
+                            .await;
+                    }
+                    Position::Last => {
+                        return self
+                            .send_novels(link, tx, Position::Specify(page_num))
+                            .await;
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Position::Specify(_) => {}
+            Position::Range(_) => {}
+        }
+
+        Ok(())
+    }
 }
 
 impl SpiderMetadata for DDSpider {
@@ -299,47 +354,11 @@ impl Spider for DDSpider {
                 x
             } else {
                 error!("未查询到分类");
-                return Ok::<(), anyhow::Error>(());
+                return Ok(());
             };
 
-            let first_url = vec![DATA_URL, &sort.link].concat();
-            match pos {
-                x @ (Position::Full | Position::First | Position::Last) => {
-                    let page = html::parse(&get(&first_url).await?)?;
-
-                    // 处理第一页
-                    if matches!(x, Position::First | Position::Full) {
-                        self.parse_novels_from_page(&page)
-                            .await?
-                            .into_iter()
-                            .for_each(|x| {
-                                // 将获取到的小说信息发送到通道中
-                                tx.send(Ok(x));
-                            });
-                    }
-
-                    let page_num: i32 =
-                        if let Some(elem) = SELECTOR_LAST_PAGE.apply(&page)?.into_iter().next() {
-                            elem_text!(page, elem, {
-                                return Ok::<(), anyhow::Error>(());
-                            })
-                            .parse()?
-                        } else {
-                            warn!("没有获取到末尾页数");
-                            return Ok::<(), anyhow::Error>(());
-                        };
-
-                    match x {
-                        Position::Full => {}
-                        Position::Last => {}
-                        _ => unreachable!(),
-                    }
-                }
-                Position::Specify(_) => {}
-                Position::Range(_) => {}
-            }
-
-            Ok::<(), anyhow::Error>(())
+            let _ = self.send_novels(&sort.link, tx, pos).await?;
+            return Ok::<(), anyhow::Error>(());
         });
 
         rx

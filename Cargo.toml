@@ -26,6 +26,7 @@ async-trait = "0.1.56"
 rs-snowflake = "0.6.0"
 dotenv = "0.15.0"
 skyscraper = "0.2.1"
+async-recursion = "1.0.0"
 [dependencies.serde]
 version = "1"
 features = ["derive"]
