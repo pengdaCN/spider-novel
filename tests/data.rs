@@ -1,4 +1,6 @@
 use sea_orm::Database;
+use tokio::sync::oneshot;
+use tokio::sync::oneshot::error::RecvError;
 use tokio::test;
 
 use spider_novel::keeper::data::sort::{add_or_recover, list};
@@ -36,4 +38,28 @@ async fn list_sort() {
     for x in data {
         println!("{:?}", x);
     }
+}
+
+#[test]
+async fn oneshot_sender() {
+    // let (send, recv) = oneshot::channel();
+    //
+    // tokio::spawn(async move {
+    //     for x in 1..100 {
+    //         send.send(x).unwrap()
+    //     }
+    // });
+    //
+    // loop {
+    //     match recv.await {
+    //         Ok(x) => {
+    //             println!("{}", x);
+    //         }
+    //         Err(e) => {
+    //             println!("{}", e);
+    //
+    //             return;
+    //         }
+    //     }
+    // }
 }

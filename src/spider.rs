@@ -171,13 +171,21 @@ pub trait Spider: Sync {
     // 通过分类id获取小说元信息
     // TODO 修改返回值为result类型
     #[allow(unused_variables)]
-    async fn novels_by_sort_id(&self, id: &SortID, pos: Position) -> Receiver<Result<Novel>> {
+    async fn novels_by_sort_id(
+        &self,
+        id: &SortID,
+        pos: Position,
+    ) -> Result<Receiver<Result<Novel>>> {
         unimplemented!()
     }
 
     // 通过小说id获取章节和内容
     #[allow(unused_variables)]
-    async fn sections_by_novel_id(&self, id: &NovelID, pos: Position) -> Receiver<Result<Section>> {
+    async fn sections_by_novel_id(
+        &self,
+        id: &NovelID,
+        pos: Position,
+    ) -> Result<Receiver<Result<Section>>> {
         unimplemented!()
     }
 

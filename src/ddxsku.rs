@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -16,7 +16,8 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::{channel, Sender};
 
 use crate::common::httputils::get;
-use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, sort_by_id};
+use crate::ddxsku::data::novel::Model;
+use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, novel_by_id, sort_by_id};
 use crate::spider::{
     Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider, SpiderMetadata, Support,
 };
@@ -62,7 +63,7 @@ const SELECT_NOVEL_INTRO: &str = r#"//dl[@id="content"]/dd[last()]/p[2]"#;
 static SELECTOR_NOVEL_INTRO: Xpath = parse(SELECT_NOVEL_INTRO).unwrap();
 
 // 获取小说章节
-const SELECT_NOVEL_SECTIONS: &str = r#"//table[@id="at"]/tbody"#;
+const SELECT_NOVEL_SECTIONS: &str = r#"//table[@id="at"]/tbody/tr/td/a"#;
 #[dynamic]
 static SELECTOR_NOVEL_SECTIONS: Xpath = parse(SELECT_NOVEL_SECTIONS).unwrap();
 
@@ -73,13 +74,20 @@ static SELECTOR_NOVEL_CONTENT: Xpath = parse(SELECT_NOVEL_CONTENT).unwrap();
 
 // 获取html中的属性
 macro_rules! elem_attr {
-    ($doc: expr, $elem:expr, attr=$name:expr, $or:tt) => {{
+    ($doc: expr, $elem:expr, attr=$name:expr) => {{
         use skyscraper::html::HtmlNode;
-        if let Some(x) = $doc.get_html_node(&$elem).and_then(|x| match x {
+        if let Some(x) = $doc.get_html_node($elem).and_then(|x| match x {
             HtmlNode::Tag(inner) => inner.attributes.get($name),
             _ => None,
         }) {
-            x.clone()
+            Some(x.clone())
+        } else {
+            None
+        }
+    }};
+    ($doc: expr, $elem:expr, attr=$name:expr, $or:tt) => {{
+        if let Some(x) = elem_attr!($doc, $elem, attr = $name) {
+            x
         } else {
             $or
         }
@@ -89,7 +97,7 @@ macro_rules! elem_attr {
 // 获取html中文本
 macro_rules! elem_text {
     ($doc: expr, $elem: expr, $or:tt) => {{
-        if let Some(x) = $elem.get_all_text(&$doc) {
+        if let Some(x) = $elem.get_all_text($doc) {
             x
         } else {
             $or
@@ -158,7 +166,7 @@ impl DDSpider {
                         let link: String = {
                             let a = x.get(0)?.children(page).next()?;
 
-                            elem_attr!(page, a, attr = "href", {
+                            elem_attr!(page, &a, attr = "href", {
                                 return None;
                             })
                         };
@@ -306,7 +314,7 @@ impl DDSpider {
 
                 let page_num: i32 =
                     if let Some(elem) = SELECTOR_LAST_PAGE.apply(&page)?.into_iter().next() {
-                        elem_text!(page, elem, {
+                        elem_text!(&page, &elem, {
                             return Ok(());
                         })
                         .parse()?
@@ -360,6 +368,28 @@ impl DDSpider {
 
         Ok(())
     }
+
+    pub fn sections_from_page<'a>(
+        page: &'a HtmlDocument,
+    ) -> impl Iterator<Item = (String, Option<String>)> + 'a {
+        SELECTOR_NOVEL_SECTIONS
+            .apply(page)
+            .ok()
+            .and_then(|x| {
+                let iter = x.into_iter().enumerate().map(|x| {
+                    let name =
+                        x.1.get_all_text(page)
+                            .unwrap_or(format!("unknown-{}", x.0 + 1));
+                    let link: Option<String> = elem_attr!(page, &x.1, attr = "href");
+
+                    (name, link)
+                });
+
+                Some(iter)
+            })
+            .into_iter()
+            .flatten()
+    }
 }
 
 impl SpiderMetadata for DDSpider {
@@ -382,8 +412,8 @@ impl Spider for DDSpider {
         let page = html::parse(&raw_page)?;
 
         for elem in SELECTOR_SORT.apply(&page)? {
-            let name: String = elem_text!(page, elem, continue);
-            let link: String = elem_attr!(page, elem, attr = "href", continue);
+            let name: String = elem_text!(&page, &elem, continue);
+            let link: String = elem_attr!(page, &elem, attr = "href", continue);
 
             let id = add_or_recover(&self.db, &name, &link).await?;
 
@@ -396,35 +426,45 @@ impl Spider for DDSpider {
         Ok(sorts)
     }
 
-    async fn novels_by_sort_id(&self, id: &SortID, pos: Position) -> Receiver<Result<Novel>> {
-        let (mut tx, rx) = channel(10);
+    async fn novels_by_sort_id(
+        &self,
+        id: &SortID,
+        pos: Position,
+    ) -> Result<Receiver<Result<Novel>>> {
+        let sort = sort_by_id(&self.db, &id).await?;
+        let sort = if let Some(x) = sort {
+            x
+        } else {
+            bail!("Missing sort {}", id)
+        };
 
-        let id = id.clone();
+        let (mut tx, rx) = channel(10);
         let runner = self.clone();
         tokio::spawn(async move {
-            let sort = sort_by_id(&runner.db, &id).await?;
-            let sort = if let Some(x) = sort {
-                x
-            } else {
-                error!("未查询到分类");
-                return Ok(());
-            };
-
             let _ = runner.send_novels(&sort.link, &mut tx, pos).await?;
             return Ok::<(), anyhow::Error>(());
         });
 
-        rx
+        Ok(rx)
     }
 
-    async fn sections_by_novel_id(&self, id: &NovelID, pos: Position) -> Receiver<Result<Section>> {
-        let (tx, rx) = channel(10);
+    async fn sections_by_novel_id(
+        &self,
+        id: &NovelID,
+        pos: Position,
+    ) -> Result<Receiver<Result<Section>>> {
+        let novel = match novel_by_id(&self.db, id).await? {
+            Some(x) => x,
+            None => {
+                bail!("Missing novel {}", id)
+            }
+        };
 
-        let id = id.clone();
+        let (tx, rx) = channel(10);
         let runner = self.clone();
         tokio::spawn(async move {});
 
-        rx
+        Ok(rx)
     }
 
     async fn search(&self, name: &str) -> Result<Option<Vec<Novel>>> {
