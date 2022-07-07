@@ -1,4 +1,4 @@
-use std::ops::ControlFlow;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -86,8 +86,28 @@ macro_rules! elem_text {
     }};
 }
 
-pub struct DDSpider {
+pub struct SpiderData {
     db: Arc<DbConn>,
+}
+
+pub struct DDSpider {
+    inner: Arc<SpiderData>,
+}
+
+impl Clone for DDSpider {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl Deref for DDSpider {
+    type Target = SpiderData;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl DDSpider {
@@ -267,7 +287,7 @@ impl DDSpider {
                 // 处理第一页
                 if matches!(x, Position::First | Position::Full) {
                     for x in self.parse_novels_from_page(&page).await? {
-                        if let Err(e) = tx.send(Ok(x)).await {
+                        if let Err(_) = tx.send(Ok(x)).await {
                             return Ok(());
                         }
                     }
@@ -315,7 +335,7 @@ impl DDSpider {
 
                 let page = html::parse(&get(&page_link).await?)?;
                 for x in self.parse_novels_from_page(&page).await? {
-                    if let Err(e) = tx.send(Ok(x)).await {
+                    if let Err(_) = tx.send(Ok(x)).await {
                         return Ok(());
                     }
                 }
@@ -365,16 +385,13 @@ impl Spider for DDSpider {
         Ok(sorts)
     }
 
-    async fn novels_by_sort_id(
-        self: Arc<Self>,
-        id: &SortID,
-        pos: Position,
-    ) -> Receiver<Result<Novel>> {
+    async fn novels_by_sort_id(&self, id: &SortID, pos: Position) -> Receiver<Result<Novel>> {
         let (mut tx, rx) = channel(10);
 
         let id = id.clone();
-        let handle = tokio::spawn(async move {
-            let sort = sort_by_id(&self.db, &id).await?;
+        let runner = self.clone();
+        tokio::spawn(async move {
+            let sort = sort_by_id(&runner.db, &id).await?;
             let sort = if let Some(x) = sort {
                 x
             } else {
@@ -382,18 +399,14 @@ impl Spider for DDSpider {
                 return Ok(());
             };
 
-            let _ = self.send_novels(&sort.link, &mut tx, pos).await?;
+            let _ = runner.send_novels(&sort.link, &mut tx, pos).await?;
             return Ok::<(), anyhow::Error>(());
         });
 
         rx
     }
 
-    async fn sections_by_novel_id(
-        self: Arc<Self>,
-        id: &NovelID,
-        pos: Position,
-    ) -> Receiver<Result<Section>> {
+    async fn sections_by_novel_id(&self, id: &NovelID, pos: Position) -> Receiver<Result<Section>> {
         todo!()
     }
 
