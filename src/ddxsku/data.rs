@@ -5,7 +5,7 @@ use sea_orm::{Condition, QuerySelect, TransactionTrait};
 
 use crate::common::snowid::id;
 use crate::ddxsku::DATA_URL;
-use crate::spider::SortID;
+use crate::spider::{NovelID, SortID};
 
 pub mod novel;
 pub mod sort;
@@ -66,5 +66,9 @@ pub async fn add_or_recover_novel(
     author: &str,
     raw_id: &str,
 ) -> Result<i64> {
+    unimplemented!()
+}
+
+pub async fn novel_by_id(db: &DbConn, id: &NovelID) -> Result<Option<novel::Model>> {
     unimplemented!()
 }

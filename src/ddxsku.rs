@@ -56,9 +56,20 @@ const SELECT_NOVEL_LAST_UPDATED_AT: &str =
 #[dynamic]
 static SELECTOR_NOVEL_LAST_UPDATED_AT: Xpath = parse(SELECT_NOVEL_LAST_UPDATED_AT).unwrap();
 
+// 获取小说简介
 const SELECT_NOVEL_INTRO: &str = r#"//dl[@id="content"]/dd[last()]/p[2]"#;
 #[dynamic]
 static SELECTOR_NOVEL_INTRO: Xpath = parse(SELECT_NOVEL_INTRO).unwrap();
+
+// 获取小说章节
+const SELECT_NOVEL_SECTIONS: &str = r#"//table[@id="at"]/tbody"#;
+#[dynamic]
+static SELECTOR_NOVEL_SECTIONS: Xpath = parse(SELECT_NOVEL_SECTIONS).unwrap();
+
+// 获取小说内容
+const SELECT_NOVEL_CONTENT: &str = r#"//dd[@id="contents"]"#;
+#[dynamic]
+static SELECTOR_NOVEL_CONTENT: Xpath = parse(SELECT_NOVEL_CONTENT).unwrap();
 
 // 获取html中的属性
 macro_rules! elem_attr {
@@ -407,7 +418,13 @@ impl Spider for DDSpider {
     }
 
     async fn sections_by_novel_id(&self, id: &NovelID, pos: Position) -> Receiver<Result<Section>> {
-        todo!()
+        let (tx, rx) = channel(10);
+
+        let id = id.clone();
+        let runner = self.clone();
+        tokio::spawn(async move {});
+
+        rx
     }
 
     async fn search(&self, name: &str) -> Result<Option<Vec<Novel>>> {
