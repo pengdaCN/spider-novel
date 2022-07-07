@@ -9,6 +9,7 @@ pub struct Model {
     pub name: String,
     pub author: String,
     pub raw_link: String,
+    pub section_link: String,
 }
 
 #[derive(Debug, Copy, Clone, EnumIter)]

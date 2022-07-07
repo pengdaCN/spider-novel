@@ -129,8 +129,9 @@ impl Display for SectionID {
     }
 }
 
+#[derive(Debug)]
 pub struct Section {
-    pub id: SectionID,
+    // pub id: SectionID,
     pub novel_id: NovelID,
     pub name: String,
     pub update_at: Option<DateTime<Utc>>,

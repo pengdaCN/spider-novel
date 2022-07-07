@@ -138,6 +138,7 @@ impl DDSpider {
             String,
             String,
             Option<String>,
+            Option<String>,
             String,
             Option<DateTime<Utc>>,
             Option<NovelState>,
@@ -173,6 +174,13 @@ impl DDSpider {
 
                         // 获取小说最新章节名
                         let last_section = x.get(1).and_then(|x| x.get_all_text(page));
+
+                        // 获取小说章节连接
+                        let section_link: Option<String> = x
+                            .get(1)
+                            .and_then(|x| x.children(page).next())
+                            .and_then(|x| elem_attr!(page, &x, attr = "href"));
+
                         // 获取作者
                         let author = x
                             .get(2)
@@ -203,7 +211,15 @@ impl DDSpider {
                             Some(state)
                         });
 
-                        Some((name, link, last_section, author, last_updated_at, state))
+                        Some((
+                            name,
+                            link,
+                            last_section,
+                            section_link,
+                            author,
+                            last_updated_at,
+                            state,
+                        ))
                     })
                     // 过滤掉解析失败的
                     .filter(|x| x.is_some())
@@ -242,9 +258,13 @@ impl DDSpider {
 
     async fn parse_novels_from_page<'a>(&self, page: &HtmlDocument) -> Result<Vec<Novel>> {
         let mut novels = Vec::with_capacity(10);
-        for (name, link, last_section, author, mut last_updated_at, state) in
+        for (name, link, last_section, section_link, author, mut last_updated_at, state) in
             Self::novels_from_page(&page)
         {
+            if section_link.is_none() {
+                continue;
+            }
+
             // 获取小说详细信息
             let mut cover = None;
             let mut intro = None;
@@ -274,7 +294,15 @@ impl DDSpider {
             };
 
             // 存储小说信息
-            let id = add_or_recover_novel(&self.db, &name, &link, &author, &novel_id).await?;
+            let id = add_or_recover_novel(
+                &self.db,
+                &name,
+                &link,
+                &section_link.unwrap(),
+                &author,
+                &novel_id,
+            )
+            .await?;
 
             novels.push(Novel {
                 id: id.into(),
@@ -461,8 +489,76 @@ impl Spider for DDSpider {
         };
 
         let (tx, rx) = channel(10);
-        let runner = self.clone();
-        tokio::spawn(async move {});
+
+        let id = id.clone();
+        tokio::spawn(async move {
+            let page = html::parse(&get(&novel.section_link).await?)?;
+            let mut iter = Self::sections_from_page(&page);
+            let sections = match pos {
+                Position::Full => iter.collect(),
+                pos @ (Position::First | Position::Last | Position::Specify(_)) => {
+                    let mut v = Vec::new();
+
+                    let elem = match pos {
+                        Position::First => iter.next(),
+                        Position::Last => iter.last(),
+                        Position::Specify(x) => iter.take(x as usize).next(),
+                        _ => unreachable!(),
+                    };
+
+                    if let Some(x) = elem {
+                        v.push(x);
+                    }
+
+                    v
+                }
+                Position::Range(range) => iter
+                    .enumerate()
+                    .take_while(|(x, _)| range.contains(&(*x as i32)))
+                    .map(|(_, x)| x)
+                    .collect(),
+            };
+
+            for x in sections {
+                if x.1.is_none() {
+                    tx.send(Err(anyhow!("Missing content link: {}", x.0)))
+                        .await?;
+                    continue;
+                }
+
+                let link = x.1.unwrap();
+
+                let doc = match get(&link).await {
+                    Ok(x) => x,
+                    Err(e) => {
+                        tx.send(Err(e)).await?;
+                        continue;
+                    }
+                };
+
+                let page = html::parse(&doc)?;
+                let content = SELECTOR_NOVEL_CONTENT
+                    .apply(&page)
+                    .ok()
+                    .and_then(|x| x.into_iter().next())
+                    .and_then(|x| x.get_all_text(&page));
+
+                match content {
+                    Some(doc) => {
+                        tx.send(Ok(Section {
+                            novel_id: id,
+                            name: x.0,
+                            update_at: None,
+                            text: doc,
+                        }))
+                        .await?
+                    }
+                    None => tx.send(Err(anyhow!("Missing content: {}", x.0))).await?,
+                }
+            }
+
+            return Ok::<(), anyhow::Error>(());
+        });
 
         Ok(rx)
     }

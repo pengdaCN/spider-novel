@@ -63,6 +63,7 @@ pub async fn add_or_recover_novel(
     db: &DbConn,
     name: &str,
     link: &str,
+    section_link: &str,
     author: &str,
     raw_id: &str,
 ) -> Result<i64> {
