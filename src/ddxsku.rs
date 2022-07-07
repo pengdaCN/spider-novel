@@ -23,7 +23,7 @@ use crate::spider::{
 
 pub mod data;
 
-pub const DATA_URL: &str = "http://www.ddxsku.com/";
+pub const DATA_URL: &str = "http://www.ddxsku.com";
 
 // 获取小说分类
 const SELECT_SORT: &str = r#"//div[@class="main m_menu"]/ul/li"#;
@@ -256,7 +256,7 @@ impl DDSpider {
     async fn send_novels(
         &self,
         link: &str,
-        tx: Sender<Result<Novel>>,
+        tx: &mut Sender<Result<Novel>>,
         pos: Position,
     ) -> Result<()> {
         match pos {
@@ -285,6 +285,9 @@ impl DDSpider {
                     };
 
                 match x {
+                    Position::First => {
+                        return Ok(());
+                    }
                     Position::Full => {
                         return self
                             .send_novels(link, tx, Position::Range(2..page_num + 1))
@@ -298,8 +301,30 @@ impl DDSpider {
                     _ => unreachable!(),
                 }
             }
-            Position::Specify(_) => {}
-            Position::Range(_) => {}
+            Position::Specify(idx) => {
+                let page_link = if link.ends_with("full.html") {
+                    // 对完本小说特殊处理
+                    [
+                        DATA_URL,
+                        &format!("/modules/article/articlelist.php?fullflag=1&page={}", idx),
+                    ]
+                    .concat()
+                } else {
+                    [DATA_URL, &link.replace("1.html", &format!("{}.html", idx))].concat()
+                };
+
+                let page = html::parse(&get(&page_link).await?)?;
+                for x in self.parse_novels_from_page(&page).await? {
+                    if let Err(e) = tx.send(Ok(x)).await {
+                        return Ok(());
+                    }
+                }
+            }
+            Position::Range(range) => {
+                for x in range {
+                    let _ = self.send_novels(link, tx, Position::Specify(x)).await?;
+                }
+            }
         }
 
         Ok(())
@@ -345,7 +370,7 @@ impl Spider for DDSpider {
         id: &SortID,
         pos: Position,
     ) -> Receiver<Result<Novel>> {
-        let (tx, rx) = channel(10);
+        let (mut tx, rx) = channel(10);
 
         let id = id.clone();
         let handle = tokio::spawn(async move {
@@ -357,7 +382,7 @@ impl Spider for DDSpider {
                 return Ok(());
             };
 
-            let _ = self.send_novels(&sort.link, tx, pos).await?;
+            let _ = self.send_novels(&sort.link, &mut tx, pos).await?;
             return Ok::<(), anyhow::Error>(());
         });
 
