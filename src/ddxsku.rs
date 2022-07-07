@@ -487,12 +487,11 @@ impl Spider for DDSpider {
                 bail!("Missing novel {}", id)
             }
         };
+        let page = html::parse(&get(&novel.section_link).await?)?;
 
         let (tx, rx) = channel(10);
-
         let id = id.clone();
         tokio::spawn(async move {
-            let page = html::parse(&get(&novel.section_link).await?)?;
             let mut iter = Self::sections_from_page(&page);
             let sections = match pos {
                 Position::Full => iter.collect(),
