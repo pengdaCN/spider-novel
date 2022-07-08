@@ -59,6 +59,12 @@ impl Into<i64> for NovelID {
     }
 }
 
+impl Into<i64> for &NovelID {
+    fn into(self) -> i64 {
+        self.0
+    }
+}
+
 impl From<i64> for NovelID {
     fn from(id: i64) -> Self {
         Self(id)

@@ -1,2 +1,2 @@
 -- Add down migration script here
-drop table sorts;
+drop table ddxsku_spider_sorts;

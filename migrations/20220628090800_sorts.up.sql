@@ -1,11 +1,8 @@
 -- Add up migration script here
-create table if not exists sorts
+create table if not exists ddxsku_spider_sorts
 (
-    id               integer not null,
-    created_at       text    not null,
-    updated_at       text,
-    name             text    not null,
-    relation_kind_id text,
-    relation_id      integer,
+    id   integer not null,
+    name text    not null,
+    link text    not null,
     primary key (id)
 )

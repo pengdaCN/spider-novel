@@ -11,40 +11,41 @@ pub mod novel;
 pub mod sort;
 
 pub async fn add_or_recover(db: &DbConn, name: &str, link: &str) -> Result<i64> {
-    let id = id().await;
-
     // 查询时候存在相同名字的分类
     let selector: Select<_> = sort::Entity::find();
-    let old_id: Option<i64> = selector
+    let x: Option<sort::Model> = selector
         .column(sort::Column::Id)
-        .filter(
-            Condition::all()
-                .add(sort::Column::Name.eq(name))
-                .add(sort::Column::SpiderId.eq(DATA_URL)),
-        )
+        .filter(sort::Column::Name.eq(name))
         .one(db)
-        .await
-        .and_then(|x: Option<sort::Model>| Ok(x.and_then(|x| Some(x.id))))?;
-    let data = sort::ActiveModel {
-        id: Set(id),
-        spider_id: Set(String::from(DATA_URL)),
-        name: Set(String::from(name)),
-        link: Set(String::from(link)),
-    };
+        .await?;
 
-    // 添加分类，若存在相同名字的则删除
-    db.transaction(|tx| {
-        Box::pin(async move {
-            if let Some(id) = old_id {
-                // TODO 删除原数据
-                // let _ = sort::delete_by_id(id).exec(tx).await?;
+    let id = match x {
+        Some(x) => {
+            let id = x.id;
+            if x.link != link {
+                let mut x: sort::ActiveModel = x.into();
+                x.link = Set(String::from(link));
+
+                let _ = x.update(db).await?;
             }
 
-            let _ = sort::Entity::insert(data).exec(tx).await?;
-            Ok::<(), DbErr>(())
-        })
-    })
-    .await?;
+            id
+        }
+        None => {
+            let id = id().await;
+
+            let x: sort::ActiveModel = sort::Model {
+                id,
+                name: String::from(name),
+                link: String::from(link),
+            }
+            .into();
+
+            let _ = sort::Entity::insert(x).exec(db).await?;
+
+            id
+        }
+    };
 
     Ok(id)
 }
@@ -67,9 +68,56 @@ pub async fn add_or_recover_novel(
     author: &str,
     raw_id: &str,
 ) -> Result<i64> {
-    unimplemented!()
+    // 查询时候存在相同名字的小说
+    let selector: Select<_> = novel::Entity::find();
+    let novel: Option<novel::Model> = selector
+        .filter(
+            Condition::all()
+                .add(novel::Column::Name.eq(name))
+                .add(novel::Column::Author.eq(author)),
+        )
+        .one(db)
+        .await?;
+
+    let id = match novel {
+        Some(x) => {
+            let id = x.id;
+            if x.raw_link != link || x.section_link != section_link || x.raw_id != raw_id {
+                let mut novel: novel::ActiveModel = x.into();
+
+                novel.raw_link = Set(String::from(link));
+                novel.section_link = Set(String::from(section_link));
+                novel.raw_id = Set(String::from(raw_id));
+
+                let _ = novel.update(db).await?;
+            }
+
+            id
+        }
+        None => {
+            let id = id().await;
+
+            let x: novel::ActiveModel = novel::Model {
+                id,
+                raw_id: String::from(raw_id),
+                name: String::from(name),
+                author: String::from(author),
+                raw_link: String::from(link),
+                section_link: String::from(section_link),
+            }
+            .into();
+
+            let _ = novel::Entity::insert(x).exec(db).await?;
+
+            id
+        }
+    };
+
+    Ok(id)
 }
 
 pub async fn novel_by_id(db: &DbConn, id: &NovelID) -> Result<Option<novel::Model>> {
-    unimplemented!()
+    let x = novel::Entity::find_by_id(id.into()).one(db).await?;
+
+    Ok(x)
 }
