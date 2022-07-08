@@ -18,7 +18,5 @@ pub async fn get(url: &str) -> Result<String> {
     let resp = CLIENT.execute(CLIENT.get(url).build().unwrap()).await?;
     let text = resp.text().await?;
 
-    debug!("url = {}; body = {}", url, &text);
-
     Ok(text)
 }

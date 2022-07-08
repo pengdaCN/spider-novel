@@ -444,7 +444,7 @@ impl SpiderMetadata for DDSpider {
 impl Spider for DDSpider {
     async fn sorts(&self) -> Result<Vec<Sort>> {
         let mut sorts = Vec::new();
-        let raw_page = get(&format!("{}/", DATA_URL)).await?;
+        let raw_page = get( DATA_URL).await?;
         let page = html::parse(&raw_page)?;
 
         for elem in SELECTOR_SORT.apply(&page)? {

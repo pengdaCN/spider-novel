@@ -1,5 +1,3 @@
-extern crate core;
-
 use static_init::dynamic;
 
 pub mod common;
