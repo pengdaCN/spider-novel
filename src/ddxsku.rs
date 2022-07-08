@@ -319,12 +319,22 @@ impl DDSpider {
         Ok(novels)
     }
 
+    async fn handle_page(&self, page: &HtmlDocument, tx: &mut Sender<Result<Novel>>) -> Result<()> {
+        for x in self.parse_novels_from_page(page).await? {
+            if let Err(_) = tx.send(Ok(x)).await {
+                return Ok(());
+            }
+        }
+
+        Ok(())
+    }
+
     #[async_recursion]
     async fn send_novels(
         &self,
         link: &str,
         tx: &mut Sender<Result<Novel>>,
-        pos: Position,
+        mut pos: Position,
     ) -> Result<()> {
         match pos {
             x @ (Position::Full | Position::First | Position::Last) => {
@@ -332,12 +342,8 @@ impl DDSpider {
                 let page = html::parse(&get(&first_url).await?)?;
 
                 // 处理第一页
-                if matches!(x, Position::First | Position::Full) {
-                    for x in self.parse_novels_from_page(&page).await? {
-                        if let Err(_) = tx.send(Ok(x)).await {
-                            return Ok(());
-                        }
-                    }
+                if matches!(x, Position::First) {
+                    self.handle_page(&page, tx).await?
                 }
 
                 let page_num: i32 =
@@ -381,11 +387,7 @@ impl DDSpider {
                 };
 
                 let page = html::parse(&get(&page_link).await?)?;
-                for x in self.parse_novels_from_page(&page).await? {
-                    if let Err(_) = tx.send(Ok(x)).await {
-                        return Ok(());
-                    }
-                }
+                self.handle_page(&page, tx).await?
             }
             Position::Range(range) => {
                 for x in range {
