@@ -1,23 +1,23 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
+use crate::common::doc;
 use anyhow::{anyhow, bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::{error, warn};
 use sea_orm::DbConn;
-use skyscraper::html;
 use skyscraper::html::HtmlDocument;
 use skyscraper::xpath::parse::parse;
 use skyscraper::xpath::Xpath;
 use static_init::dynamic;
-use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{channel, Sender};
 
 use crate::common::httputils::get;
-use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, novel_by_id, sort_by_id};
 use crate::ddxsku::data::novel::Model;
+use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, novel_by_id, sort_by_id};
 use crate::spider::{
     Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider, SpiderMetadata, Support,
 };
@@ -140,7 +140,7 @@ impl DDSpider {
     fn novels_from_page<'a>(
         page: &'a HtmlDocument,
     ) -> impl Iterator<
-        Item=(
+        Item = (
             String,
             String,
             Option<String>,
@@ -202,7 +202,7 @@ impl DDSpider {
                                     &format!("{x} 21:00:09 +08:00"),
                                     "%Y-%m-%d %H:%M:%S %z",
                                 )
-                                    .ok()
+                                .ok()
                             })
                             .map(|x| x.into());
 
@@ -265,7 +265,7 @@ impl DDSpider {
     async fn parse_novels_from_page<'a>(&self, page: &HtmlDocument) -> Result<Vec<Novel>> {
         let mut novels = Vec::with_capacity(10);
         for (name, link, last_section, section_link, author, mut last_updated_at, state) in
-        Self::novels_from_page(&page)
+            Self::novels_from_page(&page)
         {
             if section_link.is_none() {
                 continue;
@@ -277,7 +277,7 @@ impl DDSpider {
             if let Some(x) = get(&link)
                 .await
                 .ok()
-                .and_then(|x| html::parse(&x).ok())
+                .and_then(|x| doc::parse(&x).ok())
                 .and_then(|x| Some(Self::parse_detail_novel(&x)))
             {
                 last_updated_at = x.1;
@@ -308,7 +308,7 @@ impl DDSpider {
                 &author,
                 &novel_id,
             )
-                .await?;
+            .await?;
 
             novels.push(Novel {
                 id: id.into(),
@@ -345,7 +345,7 @@ impl DDSpider {
         match pos {
             x @ (Position::Full | Position::First | Position::Last) => {
                 let first_url = vec![DATA_URL, &link].concat();
-                let page = html::parse(&get(&first_url).await?)?;
+                let page = doc::parse(&get(&first_url).await?)?;
 
                 // 处理第一页
                 if matches!(x, Position::First) {
@@ -357,7 +357,7 @@ impl DDSpider {
                         elem_text!(&page, &elem, {
                             return Ok(());
                         })
-                            .parse()?
+                        .parse()?
                     } else {
                         warn!("没有获取到末尾页数");
                         return Ok(());
@@ -387,12 +387,12 @@ impl DDSpider {
                         DATA_URL,
                         &format!("/modules/article/articlelist.php?fullflag=1&page={}", idx),
                     ]
-                        .concat()
+                    .concat()
                 } else {
                     [DATA_URL, &link.replace("1.html", &format!("{}.html", idx))].concat()
                 };
 
-                let page = html::parse(&get(&page_link).await?)?;
+                let page = doc::parse(&get(&page_link).await?)?;
                 self.handle_page(&page, tx).await?
             }
             Position::Range(range) => {
@@ -407,7 +407,7 @@ impl DDSpider {
 
     fn sections_from_page<'a>(
         page: &'a HtmlDocument,
-    ) -> impl Iterator<Item=(String, Option<String>)> + 'a {
+    ) -> impl Iterator<Item = (String, Option<String>)> + 'a {
         SELECTOR_NOVEL_SECTIONS
             .apply(page)
             .ok()
@@ -444,8 +444,8 @@ impl SpiderMetadata for DDSpider {
 impl Spider for DDSpider {
     async fn sorts(&self) -> Result<Vec<Sort>> {
         let mut sorts = Vec::new();
-        let raw_page = get( DATA_URL).await?;
-        let page = html::parse(&raw_page)?;
+        let raw_page = get(DATA_URL).await?;
+        let page = doc::parse(&raw_page)?;
 
         for elem in SELECTOR_SORT.apply(&page)? {
             let name: String = elem_text!(&page, &elem, continue);
@@ -495,7 +495,7 @@ impl Spider for DDSpider {
                 bail!("Missing novel {}", id)
             }
         };
-        let page = html::parse(&get(&novel.section_link).await?)?;
+        let page = doc::parse(&get(&novel.section_link).await?)?;
 
         let (tx, rx) = channel(10);
         let id = id.clone();
@@ -543,7 +543,7 @@ impl Spider for DDSpider {
                     }
                 };
 
-                let page = html::parse(&doc)?;
+                let page = doc::parse(&doc)?;
                 let content = SELECTOR_NOVEL_CONTENT
                     .apply(&page)
                     .ok()
@@ -558,7 +558,7 @@ impl Spider for DDSpider {
                             update_at: None,
                             text: doc,
                         }))
-                            .await?
+                        .await?
                     }
                     None => tx.send(Err(anyhow!("Missing content: {}", x.0))).await?,
                 }

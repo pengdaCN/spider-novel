@@ -1,8 +1,8 @@
-use std::sync::Arc;
 use sea_orm::Database;
-use tokio::test;
 use spider_novel::ddxsku::DDSpider;
 use spider_novel::spider::Spider;
+use std::sync::Arc;
+use tokio::test;
 
 async fn ddxsku_spider() -> DDSpider {
     let db = Database::connect("sqlite://data.db")

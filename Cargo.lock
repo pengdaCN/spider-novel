@@ -965,6 +965,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "libxml"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "687f5a78939052c5d02865c0fe3ea2ce2acdca875f7f81db82f7aef256dd97ac"
+dependencies = [
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2008,6 +2019,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "fast_log",
+ "libxml",
  "log",
  "nipper",
  "reqwest",
