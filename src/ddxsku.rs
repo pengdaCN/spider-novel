@@ -28,7 +28,7 @@ pub const DATA_URL: &str = "http://www.ddxsku.com";
 const SELECT_SORT: &str = r#"div.main.m_menu > ul > li"#;
 
 // 获取最后一条分页
-const SELECT_LAST_PAGE: &str = r#"//a[@class="last"]"#;
+const SELECT_LAST_PAGE: &str = r#"a.last"#;
 
 // 获取小说列表
 const SELECT_NOVEL_TABLE: &str = r#"tbody > tr"#;
@@ -37,7 +37,7 @@ const SELECT_NOVEL_TABLE: &str = r#"tbody > tr"#;
 const SELECT_NOVEL_ITEM: &str = r#"td"#;
 
 // 获取小说封面链接
-const SELECT_NOVEL_COVER: &str = r#"//div.fl:first-of-type img"#;
+const SELECT_NOVEL_COVER: &str = r#"dl div.fl:first-of-type img"#;
 
 // 获取小说最近更新时间
 const SELECT_NOVEL_LAST_UPDATED_AT: &str =
@@ -451,7 +451,7 @@ impl Spider for DDSpider {
                 }
                 Position::Range(range) => iter
                     .enumerate()
-                    .take_while(|(x, _)| range.contains(&(*x as i32)))
+                    .filter(|(idx, _)| range.contains(&((*idx as i32) + 1)))
                     .map(|(_, x)| x)
                     .collect(),
             };

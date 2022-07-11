@@ -77,11 +77,13 @@ impl Display for NovelID {
     }
 }
 
+#[derive(Debug)]
 pub enum NovelState {
     Updating,
     Finished,
 }
 
+#[derive(Debug)]
 pub struct Novel {
     pub id: NovelID,
     pub name: String,
