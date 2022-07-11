@@ -10,6 +10,7 @@ use sea_orm::DbConn;
 use static_init::dynamic;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::Semaphore;
 
 use crate::common::doc;
 use crate::common::doc::{WrapDocument, WrapSelection};
@@ -22,7 +23,9 @@ use crate::spider::{
 
 pub mod data;
 
-pub const DATA_URL: &str = "http://www.ddxsku.com";
+const DEFAULT_CONCURRENT_MAX: usize = 10;
+
+const DATA_URL: &str = "http://www.ddxsku.com";
 
 // 获取小说分类
 const SELECT_SORT: &str = r#"div.main.m_menu > ul > li"#;
@@ -74,34 +77,17 @@ macro_rules! elem_text {
     }};
 }
 
-pub struct SpiderData {
-    db: Arc<DbConn>,
-}
-
+#[derive(Clone)]
 pub struct DDSpider {
-    inner: Arc<SpiderData>,
-}
-
-impl Clone for DDSpider {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
-    }
-}
-
-impl Deref for DDSpider {
-    type Target = SpiderData;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
+    db: Arc<DbConn>,
+    smp: Arc<Semaphore>,
 }
 
 impl DDSpider {
     pub fn new(db: Arc<DbConn>) -> Self {
         Self {
-            inner: Arc::new(SpiderData { db }),
+            db,
+            smp: Arc::new(Semaphore::new(DEFAULT_CONCURRENT_MAX)),
         }
     }
 
