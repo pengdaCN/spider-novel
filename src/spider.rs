@@ -155,10 +155,15 @@ pub struct Support {
 }
 
 pub enum Position {
+    // 获取全部内容
     Full,
+    // 获取第一页，或者第一条记录
     First,
+    // 获取最后一条，或最有一页记录
     Last,
+    // 获取指定条数或者页数的记录
     Specify(i32),
+    // 获取指定范围的记录
     Range(Range<i32>),
 }
 
@@ -171,20 +176,16 @@ pub trait SpiderMetadata {
 #[async_trait]
 pub trait Spider: Sync {
     // 获取分类
-    async fn sorts(&self) -> Result<Vec<Sort>> {
-        unimplemented!()
-    }
+    // TODO 修改返回为Vec<Sort> 即永不会报错
+    async fn sorts(&self) -> Result<Vec<Sort>>;
 
     // 通过分类id获取小说元信息
-    // TODO 修改返回值为result类型
     #[allow(unused_variables)]
     async fn novels_by_sort_id(
         &self,
         id: &SortID,
         pos: Position,
-    ) -> Result<Receiver<Result<Novel>>> {
-        unimplemented!()
-    }
+    ) -> Result<Receiver<Result<Novel>>>;
 
     // 通过小说id获取章节和内容
     #[allow(unused_variables)]
@@ -192,13 +193,9 @@ pub trait Spider: Sync {
         &self,
         id: &NovelID,
         pos: Position,
-    ) -> Result<Receiver<Result<Section>>> {
-        unimplemented!()
-    }
+    ) -> Result<Receiver<Result<Section>>>;
 
     // 通过小说名字搜索小说
     #[allow(unused_variables)]
-    async fn search(&self, name: &str) -> Result<Option<Vec<Novel>>> {
-        unimplemented!()
-    }
+    async fn search(&self, name: &str) -> Result<Option<Vec<Novel>>>;
 }
