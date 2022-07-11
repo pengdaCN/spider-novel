@@ -48,8 +48,13 @@ impl WrapDocument {
 }
 
 impl<'a> WrapSelection<'a> {
-    pub fn text(&self) -> String {
-        self.inner.text().to_string()
+    pub fn text(&self) -> Option<String> {
+        let x = self.inner.text();
+        if x.len() > 0 {
+            Some(x.to_string())
+        } else {
+            None
+        }
     }
 
     pub fn attr(&self, name: &str) -> Option<String> {
