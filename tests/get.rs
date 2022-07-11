@@ -11,29 +11,6 @@ async fn tget() {
     let doc = doc::parse(&x).unwrap();
 }
 
-#[test]
-async fn tget2() {
-    let x = get("http://www.ddxsku.com/").await.unwrap();
-
-    let doc = foo(WrapDocument::parse(&x));
-    let contents = foo(doc.select("div.main.m_menu > ul > li"));
-
-    println!("{}", contents.text());
-    for x in contents.iter() {
-        println!(
-            "text:{} href:{}",
-            x.text(),
-            x.children().attr("href").unwrap_or(String::from("none"))
-        );
-    }
-
-    let _ = get("http://www.ddxsku.com/").await.unwrap();
-}
-
-fn foo<T: Send + Sync>(x: T) -> T {
-    x
-}
-
 // #[test]
 // async fn get_with_libxml() {
 // let x = get("http://www.ddxsku.com/").await.unwrap();
