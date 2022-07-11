@@ -2,6 +2,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::common::doc;
+use crate::common::doc::WrapDocument;
 use anyhow::{anyhow, bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -27,9 +28,9 @@ pub mod data;
 pub const DATA_URL: &str = "http://www.ddxsku.com";
 
 // 获取小说分类
-const SELECT_SORT: &str = r#"//div[@class="main m_menu"]/ul/li"#;
-#[dynamic]
-static SELECTOR_SORT: Xpath = parse(SELECT_SORT).unwrap();
+const SELECT_SORT: &str = r#"div.main.m_menu > ul > li"#;
+// #[dynamic]
+// static SELECTOR_SORT: Xpath = parse(SELECT_SORT).unwrap();
 
 // 获取最后一条分页
 const SELECT_LAST_PAGE: &str = r#"//a[@class="last"]"#;
@@ -37,12 +38,12 @@ const SELECT_LAST_PAGE: &str = r#"//a[@class="last"]"#;
 static SELECTOR_LAST_PAGE: Xpath = parse(SELECT_LAST_PAGE).unwrap();
 
 // 获取小说列表
-const SELECT_NOVEL_TABLE: &str = r#"//tbody/tr"#;
-#[dynamic]
-static SELECTOR_NOVEL_TABLE: Xpath = parse(SELECT_NOVEL_TABLE).unwrap();
+const SELECT_NOVEL_TABLE: &str = r#"tbody > tr"#;
+// #[dynamic]
+// static SELECTOR_NOVEL_TABLE: Xpath = parse(SELECT_NOVEL_TABLE).unwrap();
 
 // 获取列表中的小说条目
-const SELECT_NOVEL_ITEM: &str = r#"/td"#;
+const SELECT_NOVEL_ITEM: &str = r#"td"#;
 #[dynamic]
 static SELECTOR_NOVEL_ITEM: Xpath = parse(SELECT_NOVEL_ITEM).unwrap();
 
@@ -138,7 +139,7 @@ impl DDSpider {
 
     // 返回一个小说元素的迭代器
     fn novels_from_page<'a>(
-        page: &'a HtmlDocument,
+        page: &'a WrapDocument,
     ) -> impl Iterator<
         Item = (
             String,
@@ -262,10 +263,10 @@ impl DDSpider {
         (cover, updated_at, intro)
     }
 
-    async fn parse_novels_from_page<'a>(&self, page: &HtmlDocument) -> Result<Vec<Novel>> {
+    async fn parse_novels_from_page<'a>(&self, page: &WrapDocument) -> Result<Vec<Novel>> {
         let mut novels = Vec::with_capacity(10);
         for (name, link, last_section, section_link, author, mut last_updated_at, state) in
-            Self::novels_from_page(&page)
+            Self::novels_from_page(page)
         {
             if section_link.is_none() {
                 continue;
@@ -325,7 +326,7 @@ impl DDSpider {
         Ok(novels)
     }
 
-    async fn handle_page(&self, page: &HtmlDocument, tx: &mut Sender<Result<Novel>>) -> Result<()> {
+    async fn handle_page(&self, page: &WrapDocument, tx: &mut Sender<Result<Novel>>) -> Result<()> {
         for x in self.parse_novels_from_page(page).await? {
             if let Err(_) = tx.send(Ok(x)).await {
                 return Ok(());
@@ -345,7 +346,7 @@ impl DDSpider {
         match pos {
             x @ (Position::Full | Position::First | Position::Last) => {
                 let first_url = vec![DATA_URL, &link].concat();
-                let page = doc::parse(&get(&first_url).await?)?;
+                let page = WrapDocument::parse(&get(&first_url).await?);
 
                 // 处理第一页
                 if matches!(x, Position::First) {
@@ -445,11 +446,29 @@ impl Spider for DDSpider {
     async fn sorts(&self) -> Result<Vec<Sort>> {
         let mut sorts = Vec::new();
         let raw_page = get(DATA_URL).await?;
-        let page = doc::parse(&raw_page)?;
+        let page = WrapDocument::parse(&raw_page);
 
-        for elem in SELECTOR_SORT.apply(&page)? {
-            let name: String = elem_text!(&page, &elem, continue);
-            let link: String = elem_attr!(page, &elem, attr = "href", continue);
+        for elem in page.select(SELECT_SORT).iter() {
+            let name: String = {
+                let x = elem.text();
+                if x.is_empty() {
+                    continue;
+                }
+
+                x
+            };
+            let link: String = {
+                let x = elem.children().attr("href");
+                if let Some(x) = x {
+                    x
+                } else {
+                    continue;
+                }
+            };
+
+            if link == "/" {
+                continue;
+            }
 
             let id = add_or_recover(&self.db, &name, &link).await?;
 

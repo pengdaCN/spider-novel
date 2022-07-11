@@ -1,9 +1,9 @@
 use skyscraper::html;
 use spider_novel::common::doc;
+use spider_novel::common::doc::WrapDocument;
 use spider_novel::common::httputils::get;
 use std::borrow::BorrowMut;
 use tokio::test;
-use spider_novel::common::doc::WrapDocument;
 
 #[test]
 async fn tget() {
@@ -13,17 +13,26 @@ async fn tget() {
 
 #[test]
 async fn tget2() {
-    let x = get("http://www.ddxsku.com/files/article/html/102/102212/39227055.html").await.unwrap();
+    let x = get("http://www.ddxsku.com/").await.unwrap();
 
     let doc = foo(WrapDocument::parse(&x));
-    let contents = foo(doc.select("dd#contents"));
+    let contents = foo(doc.select("div.main.m_menu > ul > li"));
 
     println!("{}", contents.text());
     for x in contents.iter() {
+        println!(
+            "text:{} href:{}",
+            x.text(),
+            x.children().attr("href").unwrap_or(String::from("none"))
+        );
     }
+
+    let _ = get("http://www.ddxsku.com/").await.unwrap();
 }
 
-fn foo<T: Send + Sync>(x: T) -> T {x}
+fn foo<T: Send + Sync>(x: T) -> T {
+    x
+}
 
 // #[test]
 // async fn get_with_libxml() {

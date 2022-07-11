@@ -1,3 +1,4 @@
+use chrono::format::Item;
 use nipper::{Document, Node, Selection, Selections};
 use skyscraper::html;
 use skyscraper::html::parse::ParseError;
@@ -21,7 +22,16 @@ pub struct WrapSelection<'a> {
 }
 
 unsafe impl Sync for WrapSelection<'_> {}
+
 unsafe impl Send for WrapSelection<'_> {}
+
+pub struct WrapSections<'a> {
+    inner: Selections<Node<'a>>,
+}
+
+unsafe impl Sync for WrapSections<'_> {}
+
+unsafe impl Send for WrapSections<'_> {}
 
 impl WrapDocument {
     pub fn parse(doc: &str) -> Self {
@@ -37,7 +47,7 @@ impl WrapDocument {
     }
 }
 
-impl <'a> WrapSelection<'a> {
+impl<'a> WrapSelection<'a> {
     pub fn text(&self) -> String {
         self.inner.text().to_string()
     }
@@ -52,9 +62,29 @@ impl <'a> WrapSelection<'a> {
         }
     }
 
-    pub fn iter<'x >(&'x self) -> impl Iterator<Item=WrapSelection<'a>> + 'x {
-        self.inner.iter().map(|x| Self{
-            inner: x
-        })
+    pub fn iter(&self) -> WrapSections<'a> {
+        WrapSections {
+            inner: self.inner.iter(),
+        }
+    }
+
+    pub fn children(&self) -> Self {
+        Self {
+            inner: self.inner.children(),
+        }
+    }
+
+    pub fn parent(&self) -> Self {
+        Self {
+            inner: self.inner.parent(),
+        }
+    }
+}
+
+impl<'a> Iterator for WrapSections<'a> {
+    type Item = WrapSelection<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|x| Self::Item { inner: x })
     }
 }
