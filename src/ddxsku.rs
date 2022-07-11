@@ -379,7 +379,7 @@ impl Spider for DDSpider {
 
         for elem in page.select(SELECT_SORT).iter() {
             let name = elem_text!(elem, continue);
-            let link = elem_attr!(elem, attr = "href", continue);
+            let link = elem_attr!(elem.children(), attr = "href", continue);
 
             let id = add_or_recover(&self.db, &name, &link).await?;
 
