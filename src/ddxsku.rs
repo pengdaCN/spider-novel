@@ -7,9 +7,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::{error, warn};
 use sea_orm::DbConn;
-use skyscraper::html::HtmlDocument;
-use skyscraper::xpath::parse::parse;
-use skyscraper::xpath::Xpath;
 use static_init::dynamic;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::{channel, Sender};
@@ -29,61 +26,36 @@ pub const DATA_URL: &str = "http://www.ddxsku.com";
 
 // 获取小说分类
 const SELECT_SORT: &str = r#"div.main.m_menu > ul > li"#;
-// #[dynamic]
-// static SELECTOR_SORT: Xpath = parse(SELECT_SORT).unwrap();
 
 // 获取最后一条分页
 const SELECT_LAST_PAGE: &str = r#"//a[@class="last"]"#;
-#[dynamic]
-static SELECTOR_LAST_PAGE: Xpath = parse(SELECT_LAST_PAGE).unwrap();
 
 // 获取小说列表
 const SELECT_NOVEL_TABLE: &str = r#"tbody > tr"#;
-// #[dynamic]
-// static SELECTOR_NOVEL_TABLE: Xpath = parse(SELECT_NOVEL_TABLE).unwrap();
 
 // 获取列表中的小说条目
 const SELECT_NOVEL_ITEM: &str = r#"td"#;
-// #[dynamic]
-// static SELECTOR_NOVEL_ITEM: Xpath = parse(SELECT_NOVEL_ITEM).unwrap();
 
 // 获取小说封面链接
 const SELECT_NOVEL_COVER: &str = r#"//div.fl:first-of-type img"#;
-// #[dynamic]
-// static SELECTOR_NOVEL_COVER: Xpath = parse(SELECT_NOVEL_COVER).unwrap();
 
 // 获取小说最近更新时间
 const SELECT_NOVEL_LAST_UPDATED_AT: &str =
     r#"div.fl:last-of-type > table > tbody > tr:nth-of-type(2) > td:last-of-type"#;
-// #[dynamic]
-// static SELECTOR_NOVEL_LAST_UPDATED_AT: Xpath = parse(SELECT_NOVEL_LAST_UPDATED_AT).unwrap();
 
 // 获取小说简介
 const SELECT_NOVEL_INTRO: &str = r#"dl#content > dd:last-of-type > p:nth-of-type(2)"#;
-// #[dynamic]
-// static SELECTOR_NOVEL_INTRO: Xpath = parse(SELECT_NOVEL_INTRO).unwrap();
 
 // 获取小说章节
-const SELECT_NOVEL_SECTIONS: &str = r#"//table[@id="at"]/tbody/tr/td/a"#;
-#[dynamic]
-static SELECTOR_NOVEL_SECTIONS: Xpath = parse(SELECT_NOVEL_SECTIONS).unwrap();
+const SELECT_NOVEL_SECTIONS: &str = r#"table#at > tbody > tr > td > a"#;
 
 // 获取小说内容
-const SELECT_NOVEL_CONTENT: &str = r#"//dd[@id="contents"]"#;
-#[dynamic]
-static SELECTOR_NOVEL_CONTENT: Xpath = parse(SELECT_NOVEL_CONTENT).unwrap();
+const SELECT_NOVEL_CONTENT: &str = r#"dd#contents"#;
 
 // 获取html中的属性
 macro_rules! elem_attr {
-    ($doc: expr, attr=$name:expr) => {{
-        if let Some(x) = $doc.attr(attr) {
-            Some(x)
-        } else {
-            None
-        }
-    }};
     ($doc: expr, attr=$name:expr, $or:tt) => {{
-        if let Some(x) = elem_attr!($doc, attr = $name) {
+        if let Some(x) = $doc.attr($name) {
             x
         } else {
             $or
@@ -168,9 +140,7 @@ impl DDSpider {
                 let last_section = x.get(1).and_then(|x| x.text());
 
                 // 获取小说章节连接
-                let section_link: Option<String> = x
-                    .get(1)
-                    .and_then(|x| elem_attr!(x.children(), attr = "href"));
+                let section_link: Option<String> = x.get(1).and_then(|x| x.children().attr("href"));
 
                 // 获取作者
                 let author = x
@@ -212,6 +182,8 @@ impl DDSpider {
                     state,
                 ))
             })
+            .filter(|x| x.is_some())
+            .map(|x| x.unwrap())
     }
 
     // 获取封面链接，最近更新时间，简介
@@ -248,8 +220,7 @@ impl DDSpider {
             if let Some(x) = get(&link)
                 .await
                 .ok()
-                .and_then(|x| WrapDocument::parse(&x).ok())
-                .and_then(|x| Some(Self::parse_detail_novel(&x)))
+                .and_then(|x| Some(Self::parse_detail_novel(&WrapDocument::parse(&x))))
             {
                 last_updated_at = x.1;
                 cover = x.0;
@@ -373,25 +344,17 @@ impl DDSpider {
     }
 
     fn sections_from_page<'a>(
-        page: &'a HtmlDocument,
+        page: &'a WrapDocument,
     ) -> impl Iterator<Item = (String, Option<String>)> + 'a {
-        SELECTOR_NOVEL_SECTIONS
-            .apply(page)
-            .ok()
-            .and_then(|x| {
-                let iter = x.into_iter().enumerate().map(|x| {
-                    let name =
-                        x.1.get_all_text(page)
-                            .unwrap_or(format!("unknown-{}", x.0 + 1));
-                    let link: Option<String> = elem_attr!(page, &x.1, attr = "href");
+        page.select(SELECT_NOVEL_SECTIONS)
+            .iter()
+            .enumerate()
+            .map(|x| {
+                let name = x.1.text().unwrap_or(format!("unknown-{}", x.0 + 1));
+                let link = x.1.attr("href");
 
-                    (name, link)
-                });
-
-                Some(iter)
+                (name, link)
             })
-            .into_iter()
-            .flatten()
     }
 }
 
@@ -417,10 +380,6 @@ impl Spider for DDSpider {
         for elem in page.select(SELECT_SORT).iter() {
             let name = elem_text!(elem, continue);
             let link = elem_attr!(elem, attr = "href", continue);
-
-            if link == "/" {
-                continue;
-            }
 
             let id = add_or_recover(&self.db, &name, &link).await?;
 
@@ -466,7 +425,7 @@ impl Spider for DDSpider {
                 bail!("Missing novel {}", id)
             }
         };
-        let page = doc::parse(&get(&novel.section_link).await?)?;
+        let page = WrapDocument::parse(&get(&novel.section_link).await?);
 
         let (tx, rx) = channel(10);
         let id = id.clone();
@@ -514,12 +473,8 @@ impl Spider for DDSpider {
                     }
                 };
 
-                let page = doc::parse(&doc)?;
-                let content = SELECTOR_NOVEL_CONTENT
-                    .apply(&page)
-                    .ok()
-                    .and_then(|x| x.into_iter().next())
-                    .and_then(|x| x.get_all_text(&page));
+                let page = WrapDocument::parse(&doc);
+                let content = page.select(SELECT_NOVEL_CONTENT).text();
 
                 match content {
                     Some(doc) => {

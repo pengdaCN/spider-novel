@@ -1,13 +1,5 @@
 use chrono::format::Item;
 use nipper::{Document, Node, Selection, Selections};
-use skyscraper::html;
-use skyscraper::html::parse::ParseError;
-use skyscraper::html::HtmlDocument;
-
-pub fn parse(doc: &str) -> Result<HtmlDocument, ParseError> {
-    let x = Document::from(doc);
-    html::parse(&x.html().to_string())
-}
 
 pub struct WrapDocument {
     inner: Document,
