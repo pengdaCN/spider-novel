@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sea_orm::prelude::*;
 use sea_orm::ActiveValue::Set;
-use sea_orm::{Condition, QuerySelect, TransactionTrait};
+use sea_orm::{Condition, ConnectionTrait, QuerySelect, TransactionTrait};
 
 use crate::common::snowid::id;
 use crate::ddxsku::DATA_URL;
@@ -58,6 +58,12 @@ pub async fn sort_by_id(db: &DbConn, id: &SortID) -> Result<Option<sort::Model>>
         .await?;
 
     Ok(x)
+}
+
+pub async fn clear_sort<T: ConnectionTrait>(db: &T) -> Result<()> {
+    let _ = sort::Entity::delete_many().exec(db).await?;
+
+    Ok(())
 }
 
 pub async fn add_or_recover_novel(

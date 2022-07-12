@@ -6,7 +6,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::{error, warn};
-use sea_orm::DbConn;
+use sea_orm::{DbConn, TransactionTrait};
 use static_init::dynamic;
 use tera::Tera;
 use tokio::sync::mpsc::Receiver;
@@ -17,7 +17,7 @@ use crate::common::doc;
 use crate::common::doc::{WrapDocument, WrapSelection};
 use crate::common::httputils::get;
 use crate::ddxsku::data::novel::Model;
-use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, novel_by_id, sort_by_id};
+use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, clear_sort, novel_by_id, sort_by_id};
 use crate::spider::{
     Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider, SpiderMetadata, Support,
 };
@@ -101,7 +101,20 @@ impl DDSpider {
         }
     }
 
-    pub async fn set_sort(&mut self, data: Vec<SortEntity>) -> Result<()> {
+    pub async fn set_sort(&mut self, data: &Vec<SortEntity>) -> Result<()> {
+        let templates = self.templates.write().await;
+        let txn = self.db.begin().await?;
+
+        // 删除原来的数据
+        clear_sort(&txn).await?;
+
+        // 插入新的数据
+
+        for x in data {
+
+        }
+
+        txn.commit().await?;
         Ok(())
     }
 
