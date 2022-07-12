@@ -16,3 +16,9 @@ fn map() {
 
     println!("{}", m.get_mut("x").unwrap().i);
 }
+
+#[test]
+fn test_format() {
+    let x = "fdasfaf_{}.html";
+    println!("{}", format!(x, 10));
+}

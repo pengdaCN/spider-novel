@@ -8,9 +8,10 @@ use chrono::{DateTime, Utc};
 use log::{error, warn};
 use sea_orm::DbConn;
 use static_init::dynamic;
+use tera::Tera;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::{channel, Sender};
-use tokio::sync::Semaphore;
+use tokio::sync::{RwLock, Semaphore};
 
 use crate::common::doc;
 use crate::common::doc::{WrapDocument, WrapSelection};
@@ -23,8 +24,10 @@ use crate::spider::{
 
 pub mod data;
 
-const DEFAULT_CONCURRENT_MAX: usize = 10;
+// 默认并发大小
+const DEFAULT_CONCURRENT_MAX: usize = 100;
 
+// 网站地址
 const DATA_URL: &str = "http://www.ddxsku.com";
 
 // 获取小说分类
@@ -81,6 +84,12 @@ macro_rules! elem_text {
 pub struct DDSpider {
     db: Arc<DbConn>,
     smp: Arc<Semaphore>,
+    templates: Arc<RwLock<Tera>>,
+}
+
+pub struct SortEntity {
+    pub name: String,
+    pub link: String,
 }
 
 impl DDSpider {
@@ -88,7 +97,12 @@ impl DDSpider {
         Self {
             db,
             smp: Arc::new(Semaphore::new(DEFAULT_CONCURRENT_MAX)),
+            templates: Arc::new(RwLock::new(Tera::default())),
         }
+    }
+
+    pub async fn set_sort(&mut self, data: Vec<SortEntity>) -> Result<()> {
+        Ok(())
     }
 
     // 返回一个小说元素的迭代器
