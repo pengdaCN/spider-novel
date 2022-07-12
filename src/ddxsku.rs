@@ -7,8 +7,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::{error, warn};
 use sea_orm::{DbConn, TransactionTrait};
+use serde_json::json;
 use static_init::dynamic;
-use tera::Tera;
+use tera::{Context, Tera};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::{RwLock, Semaphore};
@@ -17,7 +18,9 @@ use crate::common::doc;
 use crate::common::doc::{WrapDocument, WrapSelection};
 use crate::common::httputils::get;
 use crate::ddxsku::data::novel::Model;
-use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, clear_sort, novel_by_id, sort_by_id};
+use crate::ddxsku::data::{
+    add_or_recover, add_or_recover_novel, clear_sort, novel_by_id, sort_by_id,
+};
 use crate::spider::{
     Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider, SpiderMetadata, Support,
 };
@@ -84,7 +87,7 @@ macro_rules! elem_text {
 pub struct DDSpider {
     db: Arc<DbConn>,
     smp: Arc<Semaphore>,
-    templates: Arc<RwLock<Tera>>,
+    templates: Arc<(Tera, Vec<Sort>)>,
 }
 
 pub struct SortEntity {
@@ -97,25 +100,58 @@ impl DDSpider {
         Self {
             db,
             smp: Arc::new(Semaphore::new(DEFAULT_CONCURRENT_MAX)),
-            templates: Arc::new(RwLock::new(Tera::default())),
+            templates: Arc::new((Tera::default(), vec![])),
         }
     }
 
     pub async fn set_sort(&mut self, data: &Vec<SortEntity>) -> Result<()> {
-        let templates = self.templates.write().await;
+        // 开启事务
         let txn = self.db.begin().await?;
 
         // 删除原来的数据
         clear_sort(&txn).await?;
 
+        // 新添加的数据的模板引擎
+        let mut engine = Tera::default();
+        let mut sorts = Vec::new();
         // 插入新的数据
-
         for x in data {
-
+            // 添加模板
+            engine.add_raw_template(&x.name, &x.link)?;
+            // 写入到数据
+            let id = add_or_recover(&txn, &x.name, &x.link).await?;
+            sorts.push(Sort {
+                id: id.into(),
+                name: String::from(&x.name),
+            });
         }
 
+        // 替换完成
         txn.commit().await?;
+        self.templates = Arc::new((engine, sorts));
+
         Ok(())
+    }
+
+    fn render_sort_link(&self, sort_id: &SortID, idx: i32) -> Result<String> {
+        let name = self
+            .templates
+            .1
+            .iter()
+            .find(|x| x.id == *sort_id)
+            .take()
+            .map(|x| &x.name)
+            .ok_or(anyhow!("Missing sort"))?;
+
+        let link = self.templates.0.render(
+            name,
+            &Context::from_serialize(&json!({
+                "page": idx,
+            }
+            ))?,
+        )?;
+
+        Ok(link)
     }
 
     // 返回一个小说元素的迭代器
@@ -293,13 +329,13 @@ impl DDSpider {
     #[async_recursion]
     async fn send_novels(
         &self,
-        link: &str,
+        id: &SortID,
         tx: &mut Sender<Result<Novel>>,
         mut pos: Position,
     ) -> Result<()> {
         match pos {
             x @ (Position::Full | Position::First | Position::Last) => {
-                let first_url = vec![DATA_URL, &link].concat();
+                let first_url = self.render_sort_link(id, 1)?;
                 let page = WrapDocument::parse(&get(&first_url).await?);
 
                 // 处理第一页
@@ -320,35 +356,24 @@ impl DDSpider {
                     }
                     Position::Full => {
                         return self
-                            .send_novels(link, tx, Position::Range(2..page_num + 1))
+                            .send_novels(id, tx, Position::Range(2..page_num + 1))
                             .await;
                     }
                     Position::Last => {
-                        return self
-                            .send_novels(link, tx, Position::Specify(page_num))
-                            .await;
+                        return self.send_novels(id, tx, Position::Specify(page_num)).await;
                     }
                     _ => unreachable!(),
                 }
             }
             Position::Specify(idx) => {
-                let page_link = if link.ends_with("full.html") {
-                    // 对完本小说特殊处理
-                    [
-                        DATA_URL,
-                        &format!("/modules/article/articlelist.php?fullflag=1&page={}", idx),
-                    ]
-                    .concat()
-                } else {
-                    [DATA_URL, &link.replace("1.html", &format!("{}.html", idx))].concat()
-                };
+                let page_link = self.render_sort_link(id, idx)?;
 
                 let page = WrapDocument::parse(&get(&page_link).await?);
                 self.handle_page(&page, tx).await?
             }
             Position::Range(range) => {
                 for x in range {
-                    let _ = self.send_novels(link, tx, Position::Specify(x)).await?;
+                    let _ = self.send_novels(id, tx, Position::Specify(x)).await?;
                 }
             }
         }
@@ -385,24 +410,8 @@ impl SpiderMetadata for DDSpider {
 
 #[async_trait]
 impl Spider for DDSpider {
-    async fn sorts(&self) -> Result<Vec<Sort>> {
-        let mut sorts = Vec::new();
-        let raw_page = get(DATA_URL).await?;
-        let page = WrapDocument::parse(&raw_page);
-
-        for elem in page.select(SELECT_SORT).iter() {
-            let name = elem_text!(elem, continue);
-            let link = elem_attr!(elem.children(), attr = "href", continue);
-
-            let id = add_or_recover(&self.db, &name, &link).await?;
-
-            sorts.push(Sort {
-                id: id.into(),
-                name,
-            })
-        }
-
-        Ok(sorts)
+    fn sorts(&self) -> &Vec<Sort> {
+        &self.templates.1
     }
 
     async fn novels_by_sort_id(
@@ -410,17 +419,11 @@ impl Spider for DDSpider {
         id: &SortID,
         pos: Position,
     ) -> Result<Receiver<Result<Novel>>> {
-        let sort = sort_by_id(&self.db, &id).await?;
-        let sort = if let Some(x) = sort {
-            x
-        } else {
-            bail!("Missing sort {}", id)
-        };
-
         let (mut tx, rx) = channel(10);
         let runner = self.clone();
+        let id = id.clone();
         tokio::spawn(async move {
-            let _ = runner.send_novels(&sort.link, &mut tx, pos).await?;
+            let _ = runner.send_novels(&id, &mut tx, pos).await?;
             return Ok::<(), anyhow::Error>(());
         });
 

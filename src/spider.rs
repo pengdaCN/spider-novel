@@ -8,7 +8,7 @@ use tokio::sync::mpsc::Receiver;
 
 use crate::keeper::data::entity::sort::Model as SortModel;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct SortID(i64);
 
 impl Into<i64> for SortID {
@@ -178,8 +178,7 @@ pub trait SpiderMetadata {
 #[async_trait]
 pub trait Spider: Sync {
     // 获取分类
-    // TODO 修改返回为Vec<Sort> 即永不会报错
-    async fn sorts(&self) -> Result<Vec<Sort>>;
+    fn sorts(&self) -> &Vec<Sort>;
 
     // 通过分类id获取小说元信息
     #[allow(unused_variables)]

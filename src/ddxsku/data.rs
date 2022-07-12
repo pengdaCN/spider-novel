@@ -10,7 +10,7 @@ use crate::spider::{NovelID, SortID};
 pub mod novel;
 pub mod sort;
 
-pub async fn add_or_recover(db: &DbConn, name: &str, link: &str) -> Result<i64> {
+pub async fn add_or_recover<T: ConnectionTrait>(db: &T, name: &str, link: &str) -> Result<i64> {
     // 查询时候存在相同名字的分类
     let selector: Select<_> = sort::Entity::find();
     let x: Option<sort::Model> = selector
@@ -64,6 +64,13 @@ pub async fn clear_sort<T: ConnectionTrait>(db: &T) -> Result<()> {
     let _ = sort::Entity::delete_many().exec(db).await?;
 
     Ok(())
+}
+
+pub async fn sorts<T: ConnectionTrait>(db: &T) -> Result<Vec<sort::Model>> {
+    let selector: Select<_> = sort::Entity::find();
+    let x = selector.all(db).await?;
+
+    Ok(x)
 }
 
 pub async fn add_or_recover_novel(
