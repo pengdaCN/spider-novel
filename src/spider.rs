@@ -5,6 +5,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use tokio::sync::mpsc::Receiver;
+use thiserror::Error;
 
 use crate::keeper::data::entity::sort::Model as SortModel;
 
@@ -117,31 +118,12 @@ pub struct Novel {
 //     }
 // }
 
-pub struct SectionID(i32);
-
-impl Into<i32> for SectionID {
-    fn into(self) -> i32 {
-        self.0
-    }
-}
-
-impl From<i32> for SectionID {
-    fn from(id: i32) -> Self {
-        Self(id)
-    }
-}
-
-impl Display for SectionID {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SectionID({})", self.0)
-    }
-}
-
 #[derive(Debug)]
 pub struct Section {
-    // pub id: SectionID,
+    pub seq: u32,
     pub novel_id: NovelID,
     pub name: String,
+    // pub advanced_name: SectionName,
     pub update_at: Option<DateTime<Utc>>,
     pub text: String,
 }
@@ -167,6 +149,11 @@ pub enum Position {
     Specify(i32),
     // 获取指定范围的记录
     Range(Range<i32>),
+}
+
+#[derive(Error, Debug)]
+pub enum CrawlError {
+
 }
 
 pub trait SpiderMetadata {
