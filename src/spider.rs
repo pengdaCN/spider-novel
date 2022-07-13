@@ -183,7 +183,13 @@ pub trait Spider: Sync {
         pos: Position,
     ) -> Result<Receiver<Result<Section>>>;
 
+    // 获取小说元信息
+    async fn fetch_novel(&self, id: &NovelID) -> Result<Novel>;
+
     // 通过小说名字搜索小说
     #[allow(unused_variables)]
     async fn search(&self, name: &str) -> Result<Option<Vec<Novel>>>;
+
+    // 精准搜索
+    async fn exact_search(&self, name: &str, author: &str) -> Result<Novel>;
 }
