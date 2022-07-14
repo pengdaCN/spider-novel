@@ -1,11 +1,10 @@
 use std::fmt::{Display, Formatter};
 use std::ops::Range;
 
-use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use tokio::sync::mpsc::Receiver;
 use thiserror::Error;
+use tokio::sync::mpsc::Receiver;
 
 use crate::keeper::data::entity::sort::Model as SortModel;
 
@@ -136,6 +135,8 @@ pub struct Support {
     pub get_novel_from_sort: bool,
     // 是否支持搜索小说
     pub search_novel: bool,
+    // 是否支持精确搜索小说
+    pub exact_search_novel: bool,
 }
 
 pub enum Position {
@@ -153,8 +154,20 @@ pub enum Position {
 
 #[derive(Error, Debug)]
 pub enum CrawlError {
-
+    #[error("network disconnect")]
+    Disconnect {
+        seq: Option<i32>,
+        reason: reqwest::Error,
+    },
+    #[error("resource not found")]
+    ResourceNotFound,
+    #[error("parse resource failed")]
+    ParseFailed,
+    #[error("spider inner error")]
+    SpiderInnerFailed(#[from] anyhow::Error),
 }
+
+pub type Result<T> = std::result::Result<T, CrawlError>;
 
 pub trait SpiderMetadata {
     const SUPPORTED: Support;
@@ -168,7 +181,6 @@ pub trait Spider: Sync {
     fn sorts(&self) -> &Vec<Sort>;
 
     // 通过分类id获取小说元信息
-    #[allow(unused_variables)]
     async fn novels_by_sort_id(
         &self,
         id: &SortID,
@@ -176,7 +188,6 @@ pub trait Spider: Sync {
     ) -> Result<Receiver<Result<Novel>>>;
 
     // 通过小说id获取章节和内容
-    #[allow(unused_variables)]
     async fn sections_by_novel_id(
         &self,
         id: &NovelID,
@@ -187,8 +198,7 @@ pub trait Spider: Sync {
     async fn fetch_novel(&self, id: &NovelID) -> Result<Novel>;
 
     // 通过小说名字搜索小说
-    #[allow(unused_variables)]
-    async fn search(&self, name: &str) -> Result<Option<Vec<Novel>>>;
+    async fn search(&self, name: &str) -> Result<Vec<Novel>>;
 
     // 精准搜索
     async fn exact_search(&self, name: &str, author: &str) -> Result<Novel>;

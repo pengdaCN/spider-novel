@@ -14,7 +14,7 @@ static CLIENT: Client = {
     Client::builder().default_headers(h).build().unwrap()
 };
 
-pub async fn get(url: &str) -> Result<String> {
+pub async fn get(url: &str) -> reqwest::Result<String> {
     let resp = CLIENT.execute(CLIENT.get(url).build().unwrap()).await?;
     let text = resp.text().await?;
 

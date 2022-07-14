@@ -21,8 +21,10 @@ use crate::ddxsku::data::novel::Model;
 use crate::ddxsku::data::{
     add_or_recover, add_or_recover_novel, clear_sort, novel_by_id, sort_by_id,
 };
+use crate::spider;
 use crate::spider::{
-    Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider, SpiderMetadata, Support,
+    CrawlError, Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider,
+    SpiderMetadata, Support,
 };
 
 pub mod data;
@@ -254,7 +256,7 @@ impl DDSpider {
         (cover, updated_at, intro)
     }
 
-    async fn parse_novels_from_page<'a>(&self, page: &WrapDocument) -> Result<Vec<Novel>> {
+    async fn parse_novels_from_page(&self, page: &WrapDocument) -> Result<Vec<Novel>> {
         let mut novels = Vec::with_capacity(10);
         for (name, link, last_section, section_link, author, mut last_updated_at, state) in
             Self::novels_from_page(page)
@@ -316,7 +318,11 @@ impl DDSpider {
         Ok(novels)
     }
 
-    async fn handle_page(&self, page: &WrapDocument, tx: &mut Sender<Result<Novel>>) -> Result<()> {
+    async fn handle_page(
+        &self,
+        page: &WrapDocument,
+        tx: &mut Sender<spider::Result<Novel>>,
+    ) -> Result<()> {
         for x in self.parse_novels_from_page(page).await? {
             if let Err(_) = tx.send(Ok(x)).await {
                 return Ok(());
@@ -330,9 +336,9 @@ impl DDSpider {
     async fn send_novels(
         &self,
         id: &SortID,
-        tx: &mut Sender<Result<Novel>>,
+        tx: &mut Sender<spider::Result<Novel>>,
         mut pos: Position,
-    ) -> Result<()> {
+    ) {
         match pos {
             x @ (Position::Full | Position::First | Position::Last) => {
                 let first_url = self.render_sort_link(id, 1)?;
@@ -344,15 +350,21 @@ impl DDSpider {
                 }
 
                 let page_num: i32 = if let Some(last) = page.select(SELECT_LAST_PAGE).text() {
-                    last.parse()?
+                    match last.parse() {
+                        Ok(x) => x,
+                        Err(e) => {
+                            let _ = tx.send(Err(CrawlError::ParseFailed)).await;
+                            return;
+                        }
+                    }
                 } else {
                     warn!("没有获取到末尾页数");
-                    return Ok(());
+                    return;
                 };
 
                 match x {
                     Position::First => {
-                        return Ok(());
+                        return;
                     }
                     Position::Full => {
                         return self
@@ -373,12 +385,10 @@ impl DDSpider {
             }
             Position::Range(range) => {
                 for x in range {
-                    let _ = self.send_novels(id, tx, Position::Specify(x)).await?;
+                    self.send_novels(id, tx, Position::Specify(x)).await;
                 }
             }
         }
-
-        Ok(())
     }
 
     fn sections_from_page<'a>(
@@ -401,6 +411,7 @@ impl SpiderMetadata for DDSpider {
         get_sort: true,
         get_novel_from_sort: true,
         search_novel: true,
+        exact_search_novel: true,
     };
 
     fn id() -> &'static str {
@@ -418,13 +429,12 @@ impl Spider for DDSpider {
         &self,
         id: &SortID,
         pos: Position,
-    ) -> Result<Receiver<Result<Novel>>> {
+    ) -> spider::Result<Receiver<spider::Result<Novel>>> {
         let (mut tx, rx) = channel(10);
         let runner = self.clone();
         let id = id.clone();
         tokio::spawn(async move {
-            let _ = runner.send_novels(&id, &mut tx, pos).await?;
-            return Ok::<(), anyhow::Error>(());
+            runner.send_novels(&id, &mut tx, pos).await;
         });
 
         Ok(rx)
@@ -434,7 +444,7 @@ impl Spider for DDSpider {
         &self,
         id: &NovelID,
         pos: Position,
-    ) -> Result<Receiver<Result<Section>>> {
+    ) -> spider::Result<Receiver<spider::Result<Section>>> {
         let novel = match novel_by_id(&self.db, id).await? {
             Some(x) => x,
             None => {
@@ -495,6 +505,7 @@ impl Spider for DDSpider {
                 match content {
                     Some(doc) => {
                         tx.send(Ok(Section {
+                            seq: 0,
                             novel_id: id,
                             name: x.0,
                             update_at: None,
@@ -512,7 +523,15 @@ impl Spider for DDSpider {
         Ok(rx)
     }
 
-    async fn search(&self, name: &str) -> Result<Option<Vec<Novel>>> {
+    async fn fetch_novel(&self, id: &NovelID) -> spider::Result<Novel> {
+        todo!()
+    }
+
+    async fn search(&self, name: &str) -> spider::Result<Vec<Novel>> {
+        todo!()
+    }
+
+    async fn exact_search(&self, name: &str, author: &str) -> spider::Result<Novel> {
         todo!()
     }
 }
