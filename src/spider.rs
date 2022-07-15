@@ -165,6 +165,10 @@ pub enum CrawlError {
     ParseFailed,
     #[error("spider inner error")]
     SpiderInnerFailed(#[from] anyhow::Error),
+    #[error("section missing link: {0}")]
+    MissSectionLink(i32),
+    #[error("section missing content: {0}")]
+    MissSectionContent(i32),
 }
 
 pub type Result<T> = std::result::Result<T, CrawlError>;

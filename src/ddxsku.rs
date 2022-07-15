@@ -11,8 +11,9 @@ use serde_json::json;
 use static_init::dynamic;
 use static_init::FinalyMode::Drop;
 use tera::{Context, Tera};
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::{Permit, Receiver};
 use tokio::sync::{RwLock, Semaphore};
 
 use crate::common::doc;
@@ -321,12 +322,7 @@ impl DDSpider {
     }
 
     #[async_recursion]
-    async fn send_novels(
-        &self,
-        id: &SortID,
-        tx: Arc<Sender<spider::Result<Novel>>>,
-        mut pos: Position,
-    ) {
+    async fn send_novels(&self, id: &SortID, tx: Sender<spider::Result<Novel>>, mut pos: Position) {
         macro_rules! send_err_abort {
             ($expression:expr, $tx: expr) => {
                 match $expression {
@@ -432,7 +428,7 @@ impl DDSpider {
                 );
             }
             Position::Range(range) => {
-                range.for_each(|x| {
+                for x in range {
                     let id = id.clone();
                     let tx = tx.clone();
                     let runner = self.clone();
@@ -444,7 +440,7 @@ impl DDSpider {
 
                         drop(permit);
                     });
-                });
+                }
             }
         }
     }
@@ -495,7 +491,7 @@ impl Spider for DDSpider {
         let runner = self.clone();
         let id = id.clone();
         tokio::spawn(async move {
-            runner.send_novels(&id, Arc::new(tx), pos).await;
+            runner.send_novels(&id, tx, pos).await;
         });
 
         Ok(rx)
@@ -506,16 +502,30 @@ impl Spider for DDSpider {
         id: &NovelID,
         pos: Position,
     ) -> spider::Result<Receiver<spider::Result<Section>>> {
+        macro_rules! send_or_abort {
+            ($tx:expr, $val: expr) => {
+                if let Err(_) = $tx.send($val).await {
+                    return;
+                }
+            };
+        }
+
         let novel = match novel_by_id(&self.db, id).await? {
             Some(x) => x,
             None => {
-                bail!("Missing novel {}", id)
+                return Err(CrawlError::ResourceNotFound);
             }
         };
-        let page = WrapDocument::parse(&get(&novel.section_link).await?);
+        let page = WrapDocument::parse(&get(&novel.section_link).await.map_err(|e| {
+            CrawlError::Disconnect {
+                seq: None,
+                reason: e,
+            }
+        })?);
 
         let (tx, rx) = channel(10);
         let id = id.clone();
+        let smp = self.smp.clone();
         tokio::spawn(async move {
             let mut iter = Self::sections_from_page(&page);
             let sections = match pos {
@@ -543,42 +553,56 @@ impl Spider for DDSpider {
                     .collect(),
             };
 
-            for x in sections {
-                if x.1.is_none() {
-                    tx.send(Err(anyhow!("Missing content link: {}", x.0)))
-                        .await?;
+            for x in sections.into_iter().enumerate() {
+                let seq = x.0;
+                let info = x.1;
+                if info.1.is_none() {
+                    send_or_abort!(tx, Err(CrawlError::MissSectionLink(seq as i32)));
                     continue;
                 }
 
-                let link = x.1.unwrap();
+                let link = info.1.unwrap();
 
-                let doc = match get(&link).await {
+                let permit = smp.clone().acquire_owned().await.unwrap();
+                let tx = match tx.clone().reserve_owned().await {
                     Ok(x) => x,
-                    Err(e) => {
-                        tx.send(Err(e)).await?;
-                        continue;
-                    }
+                    Err(_) => return,
                 };
 
-                let page = WrapDocument::parse(&doc);
-                let content = page.select(SELECT_NOVEL_CONTENT).text();
+                // 并发执行
+                tokio::spawn(async move {
+                    let doc = match get(&link).await {
+                        Ok(x) => x,
+                        Err(e) => {
+                            tx.send(Err(CrawlError::Disconnect {
+                                seq: Some(seq as i32),
+                                reason: e,
+                            }));
+                            return;
+                        }
+                    };
 
-                match content {
-                    Some(doc) => {
-                        tx.send(Ok(Section {
-                            seq: 0,
-                            novel_id: id,
-                            name: x.0,
-                            update_at: None,
-                            text: doc,
-                        }))
-                        .await?
+                    let page = WrapDocument::parse(&doc);
+                    let content = page.select(SELECT_NOVEL_CONTENT).text();
+
+                    match content {
+                        Some(doc) => {
+                            tx.send(Ok(Section {
+                                seq: 0,
+                                novel_id: id,
+                                name: info.0,
+                                update_at: None,
+                                text: doc,
+                            }));
+                        }
+                        None => {
+                            tx.send(Err(CrawlError::MissSectionContent(seq as i32)));
+                        }
                     }
-                    None => tx.send(Err(anyhow!("Missing content: {}", x.0))).await?,
-                }
-            }
 
-            return Ok::<(), anyhow::Error>(());
+                    drop(permit);
+                });
+            }
         });
 
         Ok(rx)
