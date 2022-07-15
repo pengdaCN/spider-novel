@@ -523,7 +523,7 @@ impl Spider for DDSpider {
             }
         })?);
 
-        let (tx, rx) = channel(10);
+        let (tx, rx) = channel(50);
         let id = id.clone();
         let smp = self.smp.clone();
         tokio::spawn(async move {
