@@ -1,9 +1,11 @@
 use sea_orm::Database;
 use spider_novel::common::snowid::set;
-use spider_novel::ddxsku::DDSpider;
+use spider_novel::ddxsku::{DDSpider, SortEntity};
 use spider_novel::spider::{NovelID, Position, SortID, Spider};
 use std::sync::Arc;
 use tokio::test;
+use tracing::Level;
+use tracing_subscriber::FmtSubscriber;
 
 async fn ddxsku_spider() -> DDSpider {
     let db = Database::connect("sqlite://data.db")
@@ -14,64 +16,45 @@ async fn ddxsku_spider() -> DDSpider {
 }
 
 #[test]
-async fn sorts() {
+async fn set_sorts() {
     set(1, 1);
-    let spider = ddxsku_spider().await;
-
-    for x in spider.sorts().await.unwrap() {
-        println!("{:?}", x);
-    }
+    let mut spider = ddxsku_spider().await;
+    spider
+        .set_sort(&vec![SortEntity {
+            name: String::from("全部分类"),
+            link: String::from(r#"http://www.ddxsku.com/top/lastupdate_{{page}}.html"#),
+        }])
+        .await
+        .unwrap();
 }
 
 #[test]
-async fn novels() {
-    set(1, 1);
-    let spider = ddxsku_spider().await;
+async fn get_novels() {
+    // a builder for `FmtSubscriber`.
+    let subscriber = FmtSubscriber::builder()
+        // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
+        // will be written to stdout.
+        .with_max_level(Level::INFO)
+        // completes the builder.
+        .finish();
 
-    let xuanhuan: SortID = (6952249900922966018 as i64).into();
-    let mut recv = spider
-        .novels_by_sort_id(&xuanhuan, Position::Range(1..10))
-        .await
-        .unwrap();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+    set(1, 1);
+    let mut spider = ddxsku_spider().await;
+    spider.load_sorts().await.unwrap();
+
+    let id: SortID = 6953631192986030081.into();
+
+    let mut rx = spider.novels_by_sort_id(&id, Position::Full).await.unwrap();
     loop {
-        match recv.recv().await {
-            Some(x) => match x {
-                Ok(x) => {
-                    println!("{:?}", x);
-                }
-                Err(e) => {
-                    println!("错误: {}", e);
-                }
-            },
+        match rx.recv().await {
+            Some(x) => {
+                println!("{:?}", x);
+            }
             None => {
                 break;
             }
-        }
-    }
-
-    println!("ok")
-}
-
-#[test]
-async fn sections() {
-    set(1, 1);
-    let spider = ddxsku_spider().await;
-    let zheng_ya_zhu_tian: NovelID = (6952251514572378113 as i64).into();
-    let mut recv = spider
-        .sections_by_novel_id(&zheng_ya_zhu_tian, Position::Range(1..10))
-        .await
-        .unwrap();
-    loop {
-        match recv.recv().await {
-            Some(x) => match x {
-                Ok(x) => {
-                    println!("{:?}", x);
-                }
-                Err(e) => {
-                    println!("错误: {}", e);
-                }
-            },
-            None => break,
         }
     }
 

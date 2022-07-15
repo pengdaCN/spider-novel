@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use log::warn;
+use log::{info, warn};
 use sea_orm::{DbConn, TransactionTrait};
 use serde_json::json;
 use tera::{Context, Tera};
@@ -436,13 +436,15 @@ impl DDSpider {
                 );
             }
             Position::Range(range) => {
+                let smp = Arc::new(Semaphore::new(DEFAULT_CONCURRENT_MAX));
                 for x in range {
                     let id = id.clone();
                     let tx = tx.clone();
                     let runner = self.clone();
 
+                    let permit = smp.clone().acquire_owned().await.unwrap();
                     // 对并发执行做限制
-                    let permit = self.smp.clone().acquire_owned().await.unwrap();
+                    info!("开始爬取页面编号 {x}");
                     tokio::spawn(async move {
                         runner.send_novels(&id, tx, Position::Specify(x)).await;
 
