@@ -14,7 +14,7 @@ use tokio::sync::Semaphore;
 
 use crate::common::doc::{WrapDocument, WrapSelection};
 use crate::common::httputils::get;
-use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, clear_sort, novel_by_id};
+use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, clear_sort, novel_by_id, sorts};
 use crate::spider;
 use crate::spider::{
     CrawlError, Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider,
@@ -28,9 +28,6 @@ const DEFAULT_CONCURRENT_MAX: usize = 100;
 
 // 网站地址
 const DATA_URL: &str = "http://www.ddxsku.com";
-
-// 获取小说分类
-const SELECT_SORT: &str = r#"div.main.m_menu > ul > li"#;
 
 // 获取最后一条分页
 const SELECT_LAST_PAGE: &str = r#"a.last"#;
@@ -124,6 +121,25 @@ impl DDSpider {
 
         // 替换完成
         txn.commit().await?;
+        self.templates = Arc::new((engine, sorts));
+
+        Ok(())
+    }
+
+    pub async fn load_sorts(&mut self) -> Result<()> {
+        let db: &DbConn = &self.db;
+        let x = sorts(db).await?;
+
+        let mut engine = Tera::default();
+        let mut sorts = Vec::new();
+        for x in x {
+            engine.add_raw_template(&x.name, &x.link)?;
+            sorts.push(Sort {
+                id: x.id.into(),
+                name: String::from(&x.name),
+            });
+        }
+
         self.templates = Arc::new((engine, sorts));
 
         Ok(())
