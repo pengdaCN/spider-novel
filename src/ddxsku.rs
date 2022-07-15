@@ -5,24 +5,17 @@ use anyhow::{anyhow, bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use log::{error, warn};
+use log::warn;
 use sea_orm::{DbConn, TransactionTrait};
 use serde_json::json;
-use static_init::dynamic;
-use static_init::FinalyMode::Drop;
 use tera::{Context, Tera};
-use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::{channel, Sender};
-use tokio::sync::mpsc::{Permit, Receiver};
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::Semaphore;
 
-use crate::common::doc;
 use crate::common::doc::{WrapDocument, WrapSelection};
 use crate::common::httputils::get;
-use crate::ddxsku::data::novel::Model;
-use crate::ddxsku::data::{
-    add_or_recover, add_or_recover_novel, clear_sort, novel_by_id, sort_by_id,
-};
+use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, clear_sort, novel_by_id};
 use crate::spider;
 use crate::spider::{
     CrawlError, Novel, NovelID, NovelState, Position, Section, Sort, SortID, Spider,

@@ -1,10 +1,10 @@
 use anyhow::Result;
 use sea_orm::prelude::*;
 use sea_orm::ActiveValue::Set;
-use sea_orm::{Condition, ConnectionTrait, QuerySelect, TransactionTrait};
+use sea_orm::{Condition, ConnectionTrait, QuerySelect};
 
 use crate::common::snowid::id;
-use crate::ddxsku::DATA_URL;
+
 use crate::spider::{NovelID, SortID};
 
 pub mod novel;

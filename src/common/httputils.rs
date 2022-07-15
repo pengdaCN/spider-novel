@@ -1,5 +1,3 @@
-use anyhow::Result;
-use log::debug;
 use reqwest::header::HeaderValue;
 use reqwest::{header, Client};
 use static_init::dynamic;
