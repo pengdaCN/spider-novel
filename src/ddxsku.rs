@@ -9,6 +9,7 @@ use log::{error, warn};
 use sea_orm::{DbConn, TransactionTrait};
 use serde_json::json;
 use static_init::dynamic;
+use static_init::FinalyMode::Drop;
 use tera::{Context, Tera};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::{channel, Sender};
@@ -135,7 +136,7 @@ impl DDSpider {
         Ok(())
     }
 
-    fn render_sort_link(&self, sort_id: &SortID, idx: i32) -> Result<String> {
+    fn render_sort_link(&self, sort_id: &SortID, idx: i32) -> spider::Result<String> {
         let name = self
             .templates
             .1
@@ -143,15 +144,20 @@ impl DDSpider {
             .find(|x| x.id == *sort_id)
             .take()
             .map(|x| &x.name)
-            .ok_or(anyhow!("Missing sort"))?;
+            .ok_or(CrawlError::ResourceNotFound)?;
 
-        let link = self.templates.0.render(
-            name,
-            &Context::from_serialize(&json!({
-                "page": idx,
-            }
-            ))?,
-        )?;
+        let link = self
+            .templates
+            .0
+            .render(
+                name,
+                &Context::from_serialize(&json!({
+                    "page": idx,
+                }
+                ))
+                .unwrap(),
+            )
+            .map_err(|e| CrawlError::SpiderInnerFailed(e.into()))?;
 
         Ok(link)
     }
@@ -256,97 +262,120 @@ impl DDSpider {
         (cover, updated_at, intro)
     }
 
-    async fn parse_novels_from_page(&self, page: &WrapDocument) -> Result<Vec<Novel>> {
-        let mut novels = Vec::with_capacity(10);
+    async fn parse_novels_from_page(&self, page: &WrapDocument) -> Vec<Result<Novel>> {
+        let mut handlers = Vec::with_capacity(10);
+
         for (name, link, last_section, section_link, author, mut last_updated_at, state) in
             Self::novels_from_page(page)
         {
-            if section_link.is_none() {
-                continue;
-            }
+            let db = self.db.clone();
+            let permit = self.smp.clone().acquire_owned().await.unwrap();
 
-            // 获取小说详细信息
-            let mut cover = None;
-            let mut intro = None;
-            if let Some(x) = get(&link)
-                .await
-                .ok()
-                .and_then(|x| Some(Self::parse_detail_novel(&WrapDocument::parse(&x))))
-            {
-                last_updated_at = x.1;
-                cover = x.0;
-                intro = x.2;
-            }
-
-            // 分离出小说id
-            let novel_id = match link
-                .split('/')
-                .last()
-                .and_then(|x| x.split('.').next())
-                .map(|x| String::from(x))
-            {
-                Some(x) => x,
-                None => {
-                    warn!("为解析出小说id, link: {}", link);
-                    continue;
+            let handler = tokio::spawn(async move {
+                // 获取小说详细信息
+                let mut cover = None;
+                let mut intro = None;
+                if let Some(x) = get(&link)
+                    .await
+                    .ok()
+                    .and_then(|x| Some(Self::parse_detail_novel(&WrapDocument::parse(&x))))
+                {
+                    last_updated_at = x.1;
+                    cover = x.0;
+                    intro = x.2;
                 }
-            };
 
-            // 存储小说信息
-            let id = add_or_recover_novel(
-                &self.db,
-                &name,
-                &link,
-                &section_link.unwrap(),
-                &author,
-                &novel_id,
-            )
-            .await?;
+                // 存储小说信息
+                let id =
+                    add_or_recover_novel(&db, &name, &link, &section_link.unwrap(), &author, "0")
+                        .await?;
 
-            novels.push(Novel {
-                id: id.into(),
-                name,
-                cover,
-                author,
-                intro,
-                last_updated_at,
-                last_updated_section_name: last_section,
-                state,
+                drop(permit);
+
+                Ok::<Novel, anyhow::Error>(Novel {
+                    id: id.into(),
+                    name,
+                    cover,
+                    author,
+                    intro,
+                    last_updated_at,
+                    last_updated_section_name: last_section,
+                    state,
+                })
             });
+
+            handlers.push(handler);
         }
 
-        Ok(novels)
-    }
+        let mut novels = Vec::with_capacity(10);
 
-    async fn handle_page(
-        &self,
-        page: &WrapDocument,
-        tx: &mut Sender<spider::Result<Novel>>,
-    ) -> Result<()> {
-        for x in self.parse_novels_from_page(page).await? {
-            if let Err(_) = tx.send(Ok(x)).await {
-                return Ok(());
-            }
+        for joinHandler in handlers {
+            let novel = joinHandler
+                .await
+                .expect("parse_novels_from_page task panic");
+
+            novels.push(novel);
         }
 
-        Ok(())
+        novels
     }
 
     #[async_recursion]
     async fn send_novels(
         &self,
         id: &SortID,
-        tx: &mut Sender<spider::Result<Novel>>,
+        tx: Arc<Sender<spider::Result<Novel>>>,
         mut pos: Position,
     ) {
+        macro_rules! send_err_abort {
+            ($expression:expr, $tx: expr) => {
+                match $expression {
+                    Ok(x) => x,
+                    Err(e) => {
+                        let _ = $tx.send(Err(e)).await;
+
+                        return;
+                    }
+                }
+            };
+        }
+
+        macro_rules! send_iter_or_abort {
+            ($elems: expr, $tx: expr) => {
+                for x in $elems {
+                    if $tx.send(x).await.is_err() {
+                        return;
+                    }
+                }
+            };
+        }
+
         match pos {
             x @ (Position::Full | Position::First | Position::Last) => {
-                let first_url = self.render_sort_link(id, 1)?;
-                let page = WrapDocument::parse(&get(&first_url).await?);
+                let first_url = send_err_abort!(self.render_sort_link(id, 1), tx);
+
+                let page = WrapDocument::parse(&send_err_abort!(
+                    get(&first_url).await.map_err(|e| CrawlError::Disconnect {
+                        seq: Some(1),
+                        reason: e,
+                    }),
+                    tx
+                ));
 
                 // 处理第一页
                 if matches!(x, Position::First) {
-                    self.handle_page(&page, tx).await?
+                    if tx.is_closed() {
+                        return;
+                    }
+
+                    send_iter_or_abort!(
+                        self.parse_novels_from_page(&page)
+                            .await
+                            .into_iter()
+                            .map(|x| { x.map_err(|e| CrawlError::SpiderInnerFailed(e.into())) })
+                            .collect::<Vec<_>>(),
+                        tx
+                    );
                 }
 
                 let page_num: i32 = if let Some(last) = page.select(SELECT_LAST_PAGE).text() {
@@ -358,7 +387,7 @@ impl DDSpider {
                         }
                     }
                 } else {
-                    warn!("没有获取到末尾页数");
+                    warn!("没有获取到末尾页数; url: {first_url}");
                     return;
                 };
 
@@ -377,16 +406,45 @@ impl DDSpider {
                     _ => unreachable!(),
                 }
             }
-            Position::Specify(idx) => {
-                let page_link = self.render_sort_link(id, idx)?;
 
-                let page = WrapDocument::parse(&get(&page_link).await?);
-                self.handle_page(&page, tx).await?
+            Position::Specify(idx) => {
+                let page_link = send_err_abort!(self.render_sort_link(id, idx), tx);
+
+                if tx.is_closed() {
+                    return;
+                }
+
+                let page = WrapDocument::parse(&send_err_abort!(
+                    get(&page_link).await.map_err(|e| CrawlError::Disconnect {
+                        seq: Some(idx),
+                        reason: e,
+                    }),
+                    tx
+                ));
+
+                send_iter_or_abort!(
+                    self.parse_novels_from_page(&page)
+                        .await
+                        .into_iter()
+                        .map(|x| { x.map_err(|e| CrawlError::SpiderInnerFailed(e.into())) })
+                        .collect::<Vec<_>>(),
+                    tx
+                );
             }
             Position::Range(range) => {
-                for x in range {
-                    self.send_novels(id, tx, Position::Specify(x)).await;
-                }
+                range.for_each(|x| {
+                    let id = id.clone();
+                    let tx = tx.clone();
+                    let runner = self.clone();
+
+                    // 对并发执行做限制
+                    let permit = self.smp.clone().acquire_owned().await.unwrap();
+                    tokio::spawn(async move {
+                        runner.send_novels(&id, tx, Position::Specify(x)).await;
+
+                        drop(permit);
+                    });
+                });
             }
         }
     }
@@ -430,11 +488,14 @@ impl Spider for DDSpider {
         id: &SortID,
         pos: Position,
     ) -> spider::Result<Receiver<spider::Result<Novel>>> {
-        let (mut tx, rx) = channel(10);
+        // 检查sort id 是否存在
+        let _ = self.render_sort_link(id, 1)?;
+
+        let (tx, rx) = channel(10);
         let runner = self.clone();
         let id = id.clone();
         tokio::spawn(async move {
-            runner.send_novels(&id, &mut tx, pos).await;
+            runner.send_novels(&id, Arc::new(tx), pos).await;
         });
 
         Ok(rx)
