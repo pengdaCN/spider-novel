@@ -1,7 +1,6 @@
-use std::ops::Deref;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::Result;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -241,7 +240,7 @@ impl DDSpider {
     fn parse_detail_novel(
         page: &WrapDocument,
     ) -> (Option<String>, Option<DateTime<Utc>>, Option<String>) {
-        let cover = page.select(SELECT_NOVEL_ITEM).attr("href");
+        let cover = page.select(SELECT_NOVEL_COVER).attr("href");
 
         let updated_at: Option<DateTime<Utc>> = page
             .select(SELECT_NOVEL_LAST_UPDATED_AT)
@@ -303,8 +302,8 @@ impl DDSpider {
 
         let mut novels = Vec::with_capacity(10);
 
-        for joinHandler in handlers {
-            let novel = joinHandler
+        for join_handler in handlers {
+            let novel = join_handler
                 .await
                 .expect("parse_novels_from_page task panic");
 
@@ -315,7 +314,7 @@ impl DDSpider {
     }
 
     #[async_recursion]
-    async fn send_novels(&self, id: &SortID, tx: Sender<spider::Result<Novel>>, mut pos: Position) {
+    async fn send_novels(&self, id: &SortID, tx: Sender<spider::Result<Novel>>, pos: Position) {
         macro_rules! send_err_abort {
             ($expression:expr, $tx: expr) => {
                 match $expression {
@@ -370,7 +369,7 @@ impl DDSpider {
                 let page_num: i32 = if let Some(last) = page.select(SELECT_LAST_PAGE).text() {
                     match last.parse() {
                         Ok(x) => x,
-                        Err(e) => {
+                        Err(_) => {
                             let _ = tx.send(Err(CrawlError::ParseFailed)).await;
                             return;
                         }
