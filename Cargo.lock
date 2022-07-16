@@ -2211,6 +2211,7 @@ dependencies = [
  "dotenv",
  "log",
  "nipper",
+ "rand 0.8.5",
  "reqwest",
  "rs-snowflake",
  "sea-orm",

@@ -3,9 +3,13 @@ use spider_novel::common::snowid::set;
 use spider_novel::ddxsku::{DDSpider, SortEntity};
 use spider_novel::spider::{NovelID, Position, SortID, Spider};
 use std::sync::Arc;
+use std::time::Duration;
+use rand::Rng;
 use tokio::fs::{DirBuilder, OpenOptions};
 use tokio::io::AsyncWriteExt;
+use tokio::sync::mpsc;
 use tokio::test;
+use tokio::time;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -137,6 +141,36 @@ async fn test_sections2() {
                 }
             }
             None => break,
+        }
+    }
+}
+
+#[test]
+async fn sender_permit() {
+    let (tx, mut rx) = mpsc::channel(10);
+    for x in 1..=10 {
+        let tx = tx.clone().reserve_owned().await.unwrap();
+
+        tokio::spawn(async move {
+            let dur = rand::thread_rng().gen_range(1..=10);
+
+            println!("task {x} sleep {dur} second");
+            time::sleep(Duration::from_secs(dur as u64)).await;
+
+            tx.send(x);
+        });
+    }
+
+    drop(tx);
+
+    loop {
+        match rx.recv().await {
+            Some(x) => {
+                println!("recv {x}")
+            }
+            None => {
+                return;
+            }
         }
     }
 }
