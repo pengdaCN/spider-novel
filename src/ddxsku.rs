@@ -598,7 +598,7 @@ impl Spider for DDSpider {
                     match content {
                         Some(doc) => {
                             tx.send(Ok(Section {
-                                seq: 0,
+                                seq: seq as u32,
                                 novel_id: id,
                                 name: info.0,
                                 update_at: None,
