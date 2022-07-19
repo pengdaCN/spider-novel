@@ -205,5 +205,11 @@ pub trait Spider: Sync {
     async fn search(&self, name: &str) -> Result<Vec<Novel>>;
 
     // 精准搜索
-    async fn exact_search(&self, name: &str, author: &str) -> Result<Novel>;
+    async fn exact_search(&self, name: &str, author: &str) -> Result<Option<Novel>> {
+        Ok(self
+            .search(name)
+            .await?
+            .into_iter()
+            .find(|x| x.author == author && x.name.trim() == name))
+    }
 }

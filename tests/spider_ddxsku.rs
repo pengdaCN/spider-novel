@@ -241,3 +241,25 @@ async fn sender_permit() {
         }
     }
 }
+
+#[test]
+async fn fetch_novel() {
+    // a builder for `FmtSubscriber`.
+    let subscriber = FmtSubscriber::builder()
+        // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
+        // will be written to stdout.
+        .with_max_level(Level::INFO)
+        // completes the builder.
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+    set(1, 1);
+    let mut spider = ddxsku_spider().await;
+    spider.load_sorts().await.unwrap();
+
+    let id: NovelID = 6953632287334469636.into();
+
+    let novel = spider.fetch_novel(&id).await.unwrap();
+    println!("{:?}", novel);
+}

@@ -13,7 +13,7 @@ use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::Semaphore;
 
 use crate::common::doc::{WrapDocument, WrapSelection};
-use crate::common::httputils::get;
+use crate::common::httputils::{get, CLIENT};
 use crate::common::sender::WrapSender;
 use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, clear_sort, novel_by_id, sorts};
 use crate::spider;
@@ -29,6 +29,9 @@ const DEFAULT_CONCURRENT_MAX: usize = 100;
 
 // 网站地址
 const DATA_URL: &str = "http://www.ddxsku.com";
+
+// 搜索地址
+const SEARCH_URL: &str = "http://www.ddxsku.com/search/";
 
 // 获取最后一条分页
 const SELECT_LAST_PAGE: &str = r#"a.last"#;
@@ -690,10 +693,30 @@ impl Spider for DDSpider {
     }
 
     async fn search(&self, name: &str) -> spider::Result<Vec<Novel>> {
-        todo!()
-    }
+        let doc = CLIENT
+            .post(SEARCH_URL)
+            .form(&vec![("searchkey", name.trim())])
+            .send()
+            .await
+            .map_err(|e| CrawlError::Disconnect {
+                seq: None,
+                reason: e,
+            })?
+            .text()
+            .await
+            .map_err(|e| CrawlError::Disconnect {
+                seq: None,
+                reason: e,
+            })?;
 
-    async fn exact_search(&self, name: &str, author: &str) -> spider::Result<Novel> {
-        todo!()
+        let page = WrapDocument::parse(&doc);
+
+        Ok(self
+            .parse_novels_from_page(&page)
+            .await
+            .into_iter()
+            .filter(|x| x.is_ok())
+            .map(|x| x.unwrap())
+            .collect())
     }
 }
