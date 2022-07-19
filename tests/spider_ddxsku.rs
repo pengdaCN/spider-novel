@@ -263,3 +263,25 @@ async fn fetch_novel() {
     let novel = spider.fetch_novel(&id).await.unwrap();
     println!("{:?}", novel);
 }
+
+#[test]
+async fn search() {
+    // a builder for `FmtSubscriber`.
+    let subscriber = FmtSubscriber::builder()
+        // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
+        // will be written to stdout.
+        .with_max_level(Level::INFO)
+        // completes the builder.
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+    set(1, 1);
+    let mut spider = ddxsku_spider().await;
+    spider.load_sorts().await.unwrap();
+
+    let novels = spider.search("遮天").await.unwrap();
+    for x in novels {
+        println!("{x:?}");
+    }
+}
