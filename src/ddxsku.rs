@@ -49,6 +49,13 @@ const SELECT_NOVEL_LAST_UPDATED_AT: &str =
 // 获取小说简介
 const SELECT_NOVEL_INTRO: &str = r#"dl#content > dd:last-of-type > p:nth-of-type(2)"#;
 
+// 获取最新章节
+const SELECT_NOVEL_LAST_SECTION: &str = r"dl#content > dd:last-of-type > p > a";
+
+// 获取小说状态
+const SELECT_NOVEL_STATE: &str =
+    "dl#content > dd:nth-of-type(2) > div > table > tbody > tr:first-of-type > td:last-of-type";
+
 // 获取小说章节
 const SELECT_NOVEL_SECTIONS: &str = r#"table#at > tbody > tr > td > a"#;
 
@@ -253,10 +260,16 @@ impl DDSpider {
             .map(|x| x.unwrap())
     }
 
-    // 获取封面链接，最近更新时间，简介
-    fn parse_detail_novel(
+    // 解析页面信息 封面链接，最近更新时间，最近更新章节，简介
+    fn parse_detail_novel2(
         page: &WrapDocument,
-    ) -> (Option<String>, Option<DateTime<Utc>>, Option<String>) {
+    ) -> (
+        Option<String>,
+        Option<DateTime<Utc>>,
+        Option<String>,
+        Option<NovelState>,
+        Option<String>,
+    ) {
         let cover = page.select(SELECT_NOVEL_COVER).attr("href");
 
         let updated_at: Option<DateTime<Utc>> = page
@@ -268,6 +281,27 @@ impl DDSpider {
             .map(|x| x.into());
 
         let intro = page.select(SELECT_NOVEL_INTRO).text();
+
+        let last_section = page.select(SELECT_NOVEL_LAST_SECTION).text();
+
+        let state = page.select(SELECT_NOVEL_STATE).text().and_then(|x| {
+            let state = match x.trim() {
+                "连载中" => NovelState::Updating,
+                "完本" => NovelState::Finished,
+                _ => NovelState::Updating,
+            };
+
+            Some(state)
+        });
+
+        (cover, updated_at, last_section, state, intro)
+    }
+
+    // 获取封面链接，最近更新时间，简介
+    fn parse_detail_novel(
+        page: &WrapDocument,
+    ) -> (Option<String>, Option<DateTime<Utc>>, Option<String>) {
+        let (cover, updated_at, _, _, intro) = Self::parse_detail_novel2(page);
 
         (cover, updated_at, intro)
     }
@@ -623,8 +657,36 @@ impl Spider for DDSpider {
         Ok(rx)
     }
 
+    // 获取小说元数据
     async fn fetch_novel(&self, id: &NovelID) -> spider::Result<Novel> {
-        todo!()
+        let novel = match novel_by_id(&self.db, id).await? {
+            Some(x) => x,
+            None => {
+                return Err(CrawlError::ResourceNotFound);
+            }
+        };
+
+        let doc = get(&novel.raw_link)
+            .await
+            .map_err(|e| CrawlError::Disconnect {
+                seq: None,
+                reason: e,
+            })?;
+
+        let page = WrapDocument::parse(&doc);
+
+        let (cover, updated_at, last_section, state, intro) = Self::parse_detail_novel2(&page);
+
+        Ok(Novel {
+            id: novel.id.into(),
+            name: novel.name,
+            cover,
+            author: novel.author,
+            intro,
+            last_updated_at: updated_at,
+            last_updated_section_name: last_section,
+            state,
+        })
     }
 
     async fn search(&self, name: &str) -> spider::Result<Vec<Novel>> {
