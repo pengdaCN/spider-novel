@@ -102,6 +102,61 @@ async fn get_novels2() {
 }
 
 #[test]
+async fn test_sections1() {
+    // a builder for `FmtSubscriber`.
+    let subscriber = FmtSubscriber::builder()
+        // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
+        // will be written to stdout.
+        .with_max_level(Level::INFO)
+        // completes the builder.
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+    set(1, 1);
+    let mut spider = ddxsku_spider().await;
+    spider.load_sorts().await.unwrap();
+
+    let id: NovelID = 6953632287334469633.into();
+
+    let mut tx = spider
+        .sections_by_novel_id(&id, Position::Full)
+        .await
+        .unwrap();
+    let novel_name = "我，宇智波义勇，没有被讨厌！";
+    let path = &format!("/tmp/{novel_name}");
+    DirBuilder::new()
+        .recursive(true)
+        .create(path)
+        .await
+        .unwrap();
+
+    loop {
+        match tx.recv().await {
+            Some(x) => match x {
+                Ok(section) => {
+                    let section_path = format!("{path}/{}-{}", section.seq, section.name);
+
+                    let mut f = OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .open(&section_path)
+                        .await
+                        .unwrap();
+                    f.write_all(&section.text.as_bytes()).await.unwrap();
+
+                    f.flush().await.unwrap();
+                }
+                Err(e) => {
+                    println!("获取章节错误：{e}");
+                }
+            },
+            None => break,
+        }
+    }
+}
+
+#[test]
 async fn test_sections2() {
     // a builder for `FmtSubscriber`.
     let subscriber = FmtSubscriber::builder()

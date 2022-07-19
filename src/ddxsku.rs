@@ -14,6 +14,7 @@ use tokio::sync::Semaphore;
 
 use crate::common::doc::{WrapDocument, WrapSelection};
 use crate::common::httputils::get;
+use crate::common::sender::WrapSender;
 use crate::ddxsku::data::{add_or_recover, add_or_recover_novel, clear_sort, novel_by_id, sorts};
 use crate::spider;
 use crate::spider::{
@@ -563,6 +564,7 @@ impl Spider for DDSpider {
                     .collect(),
             };
 
+            let order_tx = WrapSender::wrap(tx.clone());
             for x in sections.into_iter().enumerate() {
                 let seq = x.0;
                 let info = x.1;
@@ -574,7 +576,7 @@ impl Spider for DDSpider {
                 let link = info.1.unwrap();
 
                 let permit = smp.clone().acquire_owned().await.unwrap();
-                let tx = match tx.clone().reserve_owned().await {
+                let tx = match order_tx.permit_owned().await {
                     Ok(x) => x,
                     Err(_) => return,
                 };
@@ -587,7 +589,8 @@ impl Spider for DDSpider {
                             tx.send(Err(CrawlError::Disconnect {
                                 seq: Some(seq as i32),
                                 reason: e,
-                            }));
+                            }))
+                            .await;
                             return;
                         }
                     };
@@ -603,10 +606,12 @@ impl Spider for DDSpider {
                                 name: info.0,
                                 update_at: None,
                                 text: doc,
-                            }));
+                            }))
+                            .await;
                         }
                         None => {
-                            tx.send(Err(CrawlError::MissSectionContent(seq as i32)));
+                            tx.send(Err(CrawlError::MissSectionContent(seq as i32)))
+                                .await;
                         }
                     }
 
