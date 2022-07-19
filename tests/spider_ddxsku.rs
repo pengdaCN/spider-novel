@@ -1,10 +1,11 @@
+use rand::Rng;
 use sea_orm::Database;
+use spider_novel::common::sender::WrapSender;
 use spider_novel::common::snowid::set;
 use spider_novel::ddxsku::{DDSpider, SortEntity};
 use spider_novel::spider::{NovelID, Position, SortID, Spider};
 use std::sync::Arc;
 use std::time::Duration;
-use rand::Rng;
 use tokio::fs::{DirBuilder, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
@@ -118,28 +119,38 @@ async fn test_sections2() {
 
     let id: NovelID = 6953718276044230657.into();
 
-    let mut tx = spider.sections_by_novel_id(&id, Position::Full).await.unwrap();
+    let mut tx = spider
+        .sections_by_novel_id(&id, Position::Full)
+        .await
+        .unwrap();
     let novel_name = "大唐全能奶爸";
     let path = &format!("/tmp/{novel_name}");
-    DirBuilder::new().recursive(true).create(path).await.unwrap();
+    DirBuilder::new()
+        .recursive(true)
+        .create(path)
+        .await
+        .unwrap();
 
     loop {
         match tx.recv().await {
-            Some(x) => {
-                match x {
-                    Ok(section) => {
-                        let section_path = format!("{path}/{}-{}", section.seq, section.name);
+            Some(x) => match x {
+                Ok(section) => {
+                    let section_path = format!("{path}/{}-{}", section.seq, section.name);
 
-                        let mut f = OpenOptions::new().create(true).write(true).open(&section_path).await.unwrap();
-                        f.write_all(&section.text.as_bytes()).await.unwrap();
+                    let mut f = OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .open(&section_path)
+                        .await
+                        .unwrap();
+                    f.write_all(&section.text.as_bytes()).await.unwrap();
 
-                        f.flush().await.unwrap();
-                    }
-                    Err(e) => {
-                        println!("获取章节错误：{e}");
-                    }
+                    f.flush().await.unwrap();
                 }
-            }
+                Err(e) => {
+                    println!("获取章节错误：{e}");
+                }
+            },
             None => break,
         }
     }
@@ -148,8 +159,9 @@ async fn test_sections2() {
 #[test]
 async fn sender_permit() {
     let (tx, mut rx) = mpsc::channel(10);
+    let tx = WrapSender::wrap(tx);
     for x in 1..=10 {
-        let tx = tx.clone().reserve_owned().await.unwrap();
+        let tx = tx.permit_owned().await.unwrap();
 
         tokio::spawn(async move {
             let dur = rand::thread_rng().gen_range(1..=10);
@@ -157,7 +169,7 @@ async fn sender_permit() {
             println!("task {x} sleep {dur} second");
             time::sleep(Duration::from_secs(dur as u64)).await;
 
-            tx.send(x);
+            tx.send(x)
         });
     }
 
