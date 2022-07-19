@@ -260,7 +260,7 @@ impl DDSpider {
             .map(|x| x.unwrap())
     }
 
-    // 解析页面信息 封面链接，最近更新时间，最近更新章节，简介
+    // 解析页面信息 封面链接，最近更新时间，最近更新章节，状态，简介
     fn parse_detail_novel2(
         page: &WrapDocument,
     ) -> (
