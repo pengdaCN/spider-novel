@@ -135,8 +135,6 @@ pub struct Support {
     pub get_novel_from_sort: bool,
     // 是否支持搜索小说
     pub search_novel: bool,
-    // 是否支持精确搜索小说
-    pub exact_search_novel: bool,
 }
 
 pub enum Position {

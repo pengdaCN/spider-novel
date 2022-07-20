@@ -53,7 +53,10 @@ async fn get_novels() {
 
     let id: SortID = 6953631192986030081.into();
 
-    let mut rx = spider.novels_by_sort_id(&id, Position::Full).await.unwrap();
+    let mut rx = spider
+        .novels_by_sort_id(&id, Position::Range(1..10))
+        .await
+        .unwrap();
     loop {
         match rx.recv().await {
             Some(x) => {

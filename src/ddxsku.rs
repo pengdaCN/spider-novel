@@ -512,8 +512,7 @@ impl SpiderMetadata for DDSpider {
     const SUPPORTED: Support = Support {
         get_sort: true,
         get_novel_from_sort: true,
-        search_novel: true,
-        exact_search_novel: true,
+        search_novel: false,
     };
 
     fn id() -> &'static str {
