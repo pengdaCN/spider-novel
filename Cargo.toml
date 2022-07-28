@@ -15,6 +15,7 @@ panic = "unwind"
 panic = "abort"
 
 [dependencies]
+quick-js = "0.4.1"
 tokio = { version = "1.0.0", features = ["full"] }
 anyhow = "1.0.58"
 chrono = "0.4.19"
